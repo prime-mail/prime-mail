@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Prime Mail</title>
+
+  <meta
+    name="description"
+    content="Prime Mail - Simple, private and modern email."
+  >
+
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <!-- =========================
+       LOGIN SCREEN
+  ========================== -->
+
+  <section id="loginScreen" class="login-screen">
+
+    <div class="login-card">
+
+      <div class="brand large-brand">
+        <div class="brand-icon">P</div>
+        <div>
+          <h1>Prime Mail</h1>
+          <span>Private. Simple. Yours.</span>
+        </div>
+      </div>
+
+      <div class="login-form">
+
+        <h2>Welcome back</h2>
+        <p class="login-description">
+          Sign in to continue to Prime Mail.
+        </p>
+
+        <label for="loginEmail">Email</label>
+
+        <input
+          id="loginEmail"
+          type="email"
+          placeholder="you@example.com"
+          autocomplete="email"
+        >
+
+        <label for="loginPassword">Password</label>
+
+        <input
+          id="loginPassword"
+          type="password"
+          placeholder="Enter your password"
+          autocomplete="current-password"
+        >
+
+        <div class="login-options">
+          <label class="checkbox-label">
+            <input type="checkbox">
+            Remember me
+          </label>
+
+          <button
+            class="text-button"
+            type="button"
+            onclick="showForgotPassword()"
+          >
+            Forgot password?
+          </button>
+        </div>
+
+        <button
+          class="primary-button full-width"
+          onclick="login()"
+        >
+          Sign in
+        </button>
+
+        <div class="divider">
+          <span>OR</span>
+        </div>
+
+        <button
+          class="secondary-button full-width"
+          onclick="demoLogin()"
+        >
+          Continue with Demo
+        </button>
+
+        <p class="signup-text">
+          Don't have an account?
+          <button
+            class="text-button"
+            onclick="showSignup()"
+          >
+            Create account
+          </button>
+        </p>
+
+      </div>
+
+      <div class="login-footer">
+        © 2026 Prime Mail
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- =========================
+       SIGNUP SCREEN
+  ========================== -->
+
+  <section id="signupScreen" class="login-screen hidden">
+
+    <div class="login-card">
+
+      <div class="brand large-brand">
+        <div class="brand-icon">P</div>
+        <div>
+          <h1>Prime Mail</h1>
+          <span>Create your account</span>
+        </div>
+      </div>
+
+      <div class="login-form">
+
+        <h2>Create account</h2>
+
+        <p class="login-description">
+          Create your Prime Mail account.
+        </p>
+
+        <label for="signupName">Full name</label>
+
+        <input
+          id="signupName"
+          type="text"
+          placeholder="Your name"
+        >
+
+        <label for="signupEmail">Email</label>
+
+        <input
+          id="signupEmail"
+          type="email"
+          placeholder="you@example.com"
+        >
+
+        <label for="signupPassword">Password</label>
+
+        <input
+          id="signupPassword"
+          type="password"
+          placeholder="Create a password"
+        >
+
+        <button
+          class="primary-button full-width"
+          onclick="signup()"
+        >
+          Create account
+        </button>
+
+        <p class="signup-text">
+          Already have an account?
+          <button
+            class="text-button"
+            onclick="showLogin()"
+          >
+            Sign in
+          </button>
+        </p>
+
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- =========================
+       MAIN MAIL APP
+  ========================== -->
+
+  <div id="mailApp" class="mail-app hidden">
+
+    <!-- TOP BAR -->
+
+    <header class="topbar">
+
+      <div class="topbar-left">
+
+        <button
+          class="icon-button mobile-menu-button"
+          onclick="toggleSidebar()"
+          aria-label="Menu"
+        >
+          ☰
+        </button>
+
+        <div class="brand">
+
+          <div class="brand-icon">
+            P
+          </div>
+
+          <div class="brand-text">
+            <strong>Prime</strong>
+            <span>Mail</span>
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <div class="search-container">
+
+        <span class="search-icon">⌕</span>
+
+        <input
+          id="searchInput"
+          type="search"
+          placeholder="Search mail"
+          oninput="searchMail()"
+        >
+
+        <span class="search-shortcut">
+          /
+        </span>
+
+      </div>
+
+
+      <div class="topbar-actions">
+
+        <button
+          class="icon-button"
+          onclick="toggleTheme()"
+          title="Toggle theme"
+        >
+          ◐
+        </button>
+
+        <button
+          class="icon-button"
+          onclick="showNotifications()"
+          title="Notifications"
+        >
+          ♢
+        </button>
+
+        <button
+          class="profile-button"
+          onclick="toggleProfileMenu()"
+        >
+          <span class="avatar">A</span>
+          <span class="profile-name">Alex</span>
+          <span>⌄</span>
+        </button>
+
+      </div>
+
+    </header>
+
+
+    <!-- PROFILE MENU -->
+
+    <div
+      id="profileMenu"
+      class="profile-menu hidden"
+    >
+
+      <div class="profile-header">
+
+        <div class="avatar large-avatar">
+          A
+        </div>
+
+        <div>
+          <strong>Alex User</strong>
+          <small>alex@example.com</small>
+        </div>
+
+      </div>
+
+      <button onclick="showSettings()">
+        ⚙ Settings
+      </button>
+
+      <button onclick="showAccount()">
+        👤 My Account
+      </button>
+
+      <button onclick="logout()">
+        ↪ Sign out
+      </button>
+
+    </div>
+
+
+    <!-- MAIN CONTENT -->
+
+    <div class="app-layout">
+
+
+      <!-- SIDEBAR -->
+
+      <aside id="sidebar" class="sidebar">
+
+        <button
+          class="compose-button"
+          onclick="openCompose()"
+        >
+          <span class="compose-icon">＋</span>
+          Compose
+        </button>
+
+
+        <nav class="mail-nav">
+
+          <button
+            class="nav-item active"
+            data-folder="inbox"
+            onclick="openFolder('inbox')"
+          >
+            <span>▣</span>
+            <span>Inbox</span>
+            <strong id="inboxCount">4</strong>
+          </button>
+
+          <button
+            class="nav-item"
+            data-folder="starred"
+            onclick="openFolder('starred')"
+          >
+            <span>☆</span>
+            <span>Starred</span>
+          </button>
+
+          <button
+            class="nav-item"
+            data-folder="sent"
+            onclick="openFolder('sent')"
+          >
+            <span>➤</span>
+            <span>Sent</span>
+          </button>
+
+          <button
+            class="nav-item"
+            data-folder="drafts"
+            onclick="openFolder('drafts')"
+          >
+            <span>□</span>
+            <span>Drafts</span>
+            <strong id="draftCount">2</strong>
+          </button>
+
+          <button
+            class="nav-item"
+            data-folder="spam"
+            onclick="openFolder('spam')"
+          >
+            <span>!</span>
+            <span>Spam</span>
+          </button>
+
+          <button
+            class="nav-item"
+            data-folder="trash"
+            onclick="openFolder('trash')"
+          >
+            <span>♲</span>
+            <span>Trash</span>
+          </button>
+
+        </nav>
+
+
+        <div class="sidebar-section">
+
+          <div class="sidebar-title">
+            Labels
+            <button onclick="addLabel()">＋</button>
+          </div>
+
+          <button class="label-item">
+            <span class="label-dot personal"></span>
+            Personal
+          </button>
+
+          <button class="label-item">
+            <span class="label-dot work"></span>
+            Work
+          </button>
+
+          <button class="label-item">
+            <span class="label-dot important"></span>
+            Important
+          </button>
+
+        </div>
+
+
+        <div class="storage-box">
+
+          <div class="storage-title">
+            Storage
+          </div>
+
+          <div class="storage-bar">
+            <span></span>
+          </div>
+
+          <small>
+            2.4 GB of 10 GB used
+          </small>
+
+        </div>
+
+      </aside>
+
+
+      <!-- MAIL CONTENT -->
+
+      <main class="mail-content">
+
+        <div class="mail-toolbar">
+
+          <div class="toolbar-left">
+
+            <label class="checkbox-label select-all">
+              <input
+                id="selectAll"
+                type="checkbox"
+                onchange="toggleSelectAll()"
+              >
+            </label>
+
+            <button
+              class="toolbar-button"
+              onclick="refreshMail()"
+              title="Refresh"
+            >
+              ↻
+            </button>
+
+            <button
+              class="toolbar-button"
+              onclick="archiveSelected()"
+              title="Archive"
+            >
+              ▱
+            </button>
+
+            <button
+              class="toolbar-button"
+              onclick="deleteSelected()"
+              title="Delete"
+            >
+              ♲
+            </button>
+
+          </div>
+
+
+          <div class="toolbar-right">
+
+            <button
+              class="toolbar-button"
+              onclick="previousPage()"
+            >
+              ‹
+            </button>
+
+            <span class="page-number">
+              1–6 of 6
+            </span>
+
+            <button
+              class="toolbar-button"
+              onclick="nextPage()"
+            >
+              ›
+            </button>
+
+          </div>
+
+        </div>
+
+
+        <div class="folder-header">
+
+          <div>
+
+            <h2 id="folderTitle">
+              Inbox
+            </h2>
+
+            <p id="folderDescription">
+              Your recent conversations
+            </p>
+
+          </div>
+
+          <button
+            class="refresh-button"
+            onclick="refreshMail()"
+          >
+            Refresh
+          </button>
+
+        </div>
+
+
+        <section id="emailList" class="email-list">
+          <!-- Emails generated by JavaScript -->
+        </section>
+
+
+        <div
+          id="emptyState"
+          class="empty-state hidden"
+        >
+
+          <div class="empty-icon">
+            ✉
+          </div>
+
+          <h3>No emails here</h3>
+
+          <p>
+            This folder doesn't have any messages yet.
+          </p>
+
+        </div>
+
+      </main>
+
+    </div>
+
+  </div>
+
+
+  <!-- =========================
+       COMPOSE WINDOW
+  ========================== -->
+
+  <div
+    id="composeWindow"
+    class="compose-window hidden"
+  >
+
+    <div class="compose-header">
+
+      <strong>New Message</strong>
+
+      <div>
+
+        <button
+          onclick="minimizeCompose()"
+          title="Minimize"
+        >
+          −
+        </button>
+
+        <button
+          onclick="closeCompose()"
+          title="Close"
+        >
+          ×
+        </button>
+
+      </div>
+
+    </div>
+
+
+    <div class="compose-body">
+
+      <input
+        id="composeTo"
+        type="email"
+        placeholder="To"
+      >
+
+      <input
+        id="composeSubject"
+        type="text"
+        placeholder="Subject"
+      >
+
+      <textarea
+        id="composeMessage"
+        placeholder="Write your message..."
+      ></textarea>
+
+    </div>
+
+
+    <div class="compose-footer">
+
+      <button
+        class="send-button"
+        onclick="sendEmail()"
+      >
+        Send
+      </button>
+
+      <div class="compose-tools">
+
+        <button title="Attachment">
+          📎
+        </button>
+
+        <button title="Image">
+          ▧
+        </button>
+
+        <button title="Formatting">
+          A
+        </button>
+
+        <button
+          title="Delete draft"
+          onclick="closeCompose()"
+        >
+          ♲
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- =========================
+       NOTIFICATION
+  ========================== -->
+
+  <div
+    id="toast"
+    class="toast hidden"
+  >
+    <span id="toastMessage">
+      Done
+    </span>
+  </div>
+
+
+  <script src="app.js"></script>
+
+</body>
+</html>
