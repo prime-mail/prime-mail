@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -26,7 +27,6 @@
 
       <div class="brand large-brand">
         <div class="brand-icon">P</div>
-
         <div>
           <h1>Prime Mail</h1>
           <span>Private. Simple. Yours.</span>
@@ -62,7 +62,7 @@
         <div class="login-options">
 
           <label class="checkbox-label">
-            <input type="checkbox">
+            <input id="rememberMe" type="checkbox">
             Remember me
           </label>
 
@@ -77,6 +77,7 @@
         </div>
 
         <button
+          id="loginButton"
           class="primary-button full-width"
           onclick="login()"
         >
@@ -95,7 +96,6 @@
         </button>
 
         <p class="signup-text">
-
           Don't have an account?
 
           <button
@@ -104,7 +104,6 @@
           >
             Create account
           </button>
-
         </p>
 
       </div>
@@ -127,14 +126,12 @@
     <div class="login-card">
 
       <div class="brand large-brand">
-
         <div class="brand-icon">P</div>
 
         <div>
           <h1>Prime Mail</h1>
           <span>Create your account</span>
         </div>
-
       </div>
 
       <div class="login-form">
@@ -145,9 +142,7 @@
           Create your Prime Mail account.
         </p>
 
-        <label for="signupName">
-          Full name
-        </label>
+        <label for="signupName">Full name</label>
 
         <input
           id="signupName"
@@ -156,9 +151,20 @@
           autocomplete="name"
         >
 
-        <label for="signupEmail">
-          Email
-        </label>
+        <label for="signupUsername">Username</label>
+
+        <input
+          id="signupUsername"
+          type="text"
+          placeholder="Choose a username"
+          autocomplete="username"
+        >
+
+        <small class="field-help">
+          Your Prime Mail username.
+        </small>
+
+        <label for="signupEmail">Email</label>
 
         <input
           id="signupEmail"
@@ -167,9 +173,7 @@
           autocomplete="email"
         >
 
-        <label for="signupPassword">
-          Password
-        </label>
+        <label for="signupPassword">Password</label>
 
         <input
           id="signupPassword"
@@ -179,6 +183,7 @@
         >
 
         <button
+          id="signupButton"
           class="primary-button full-width"
           onclick="signup()"
         >
@@ -243,9 +248,7 @@
 
       <div class="search-container">
 
-        <span class="search-icon">
-          ⌕
-        </span>
+        <span class="search-icon">⌕</span>
 
         <input
           id="searchInput"
@@ -283,8 +286,10 @@
           class="profile-button"
           onclick="toggleProfileMenu()"
         >
-          <span class="avatar">A</span>
-          <span class="profile-name">User</span>
+          <span id="profileAvatar" class="avatar">P</span>
+          <span id="profileName" class="profile-name">
+            User
+          </span>
           <span>⌄</span>
         </button>
 
@@ -302,18 +307,27 @@
 
       <div class="profile-header">
 
-        <div class="avatar large-avatar">
-          A
+        <div
+          id="profileLargeAvatar"
+          class="avatar large-avatar"
+        >
+          P
         </div>
 
         <div>
+
           <strong id="profileFullName">
-            Prime Mail User
+            User
           </strong>
 
           <small id="profileEmail">
-            user@example.com
+            -
           </small>
+
+          <small id="profileUsername">
+            @username
+          </small>
+
         </div>
 
       </div>
@@ -337,6 +351,7 @@
 
     <div class="app-layout">
 
+
       <!-- SIDEBAR -->
 
       <aside id="sidebar" class="sidebar">
@@ -345,10 +360,7 @@
           class="compose-button"
           onclick="openCompose()"
         >
-          <span class="compose-icon">
-            ＋
-          </span>
-
+          <span class="compose-icon">＋</span>
           Compose
         </button>
 
@@ -362,7 +374,7 @@
           >
             <span>▣</span>
             <span>Inbox</span>
-            <strong id="inboxCount">4</strong>
+            <strong id="inboxCount">0</strong>
           </button>
 
           <button
@@ -390,7 +402,7 @@
           >
             <span>□</span>
             <span>Drafts</span>
-            <strong id="draftCount">2</strong>
+            <strong id="draftCount">0</strong>
           </button>
 
           <button
@@ -417,13 +429,8 @@
         <div class="sidebar-section">
 
           <div class="sidebar-title">
-
             Labels
-
-            <button onclick="addLabel()">
-              ＋
-            </button>
-
+            <button onclick="addLabel()">＋</button>
           </div>
 
           <button class="label-item">
@@ -455,7 +462,7 @@
           </div>
 
           <small>
-            2.4 GB of 10 GB used
+            Prime Mail database
           </small>
 
         </div>
@@ -518,7 +525,7 @@
             </button>
 
             <span class="page-number">
-              1–6 of 6
+              Mail
             </span>
 
             <button
@@ -573,9 +580,7 @@
             ✉
           </div>
 
-          <h3>
-            No emails here
-          </h3>
+          <h3>No emails here</h3>
 
           <p>
             This folder doesn't have any messages yet.
@@ -601,9 +606,7 @@
 
     <div class="compose-header">
 
-      <strong>
-        New Message
-      </strong>
+      <strong>New Message</strong>
 
       <div>
 
@@ -630,7 +633,7 @@
 
       <input
         id="composeTo"
-        type="email"
+        type="text"
         placeholder="To"
       >
 
@@ -693,21 +696,20 @@
     id="toast"
     class="toast hidden"
   >
-
     <span id="toastMessage">
       Done
     </span>
-
   </div>
 
 
-  <!-- SUPABASE -->
+  <!-- Supabase JS v2 -->
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <!-- PRIME MAIL APP -->
+  <!-- Prime Mail application -->
 
   <script src="app.js"></script>
 
 </body>
 </html>
+```
