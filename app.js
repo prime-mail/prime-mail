@@ -1,7 +1,35 @@
 /* =========================================
    PRIME MAIL
    Frontend Application
+   Supabase Authentication
 ========================================= */
+
+
+/* =========================================
+   SUPABASE CONFIGURATION
+========================================= */
+
+const SUPABASE_URL =
+  "https://spikrkbjhsqapoqhkkqp.supabase.co";
+
+const SUPABASE_PUBLISHABLE_KEY =
+  "sb_publishable_BrRmSLwqYP0_tZLIcksRGQ_Kd6S6CtI";
+
+
+const { createClient } = window.supabase;
+
+const supabaseClient =
+  createClient(
+    SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY
+  );
+
+
+/* =========================================
+   APP USER
+========================================= */
+
+let currentUser = null;
 
 
 /* =========================================
@@ -119,70 +147,415 @@ let composeMinimized = false;
    INITIALIZATION
 ========================================= */
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener(
+  "DOMContentLoaded",
+  async () => {
 
-  loadTheme();
+    loadTheme();
 
-  updateCounts();
+    updateCounts();
 
-});
+    await checkExistingSession();
+
+  }
+);
+
+
+/* =========================================
+   CHECK EXISTING SUPABASE SESSION
+========================================= */
+
+async function checkExistingSession() {
+
+  try {
+
+    const {
+      data,
+      error
+    } =
+      await supabaseClient.auth.getSession();
+
+
+    if (error) {
+
+      console.error(
+        "Session error:",
+        error
+      );
+
+      return;
+
+    }
+
+
+    if (
+      data &&
+      data.session &&
+      data.session.user
+    ) {
+
+      currentUser =
+        data.session.user;
+
+      enterMailApp(
+        currentUser,
+        false
+      );
+
+    }
+
+  } catch (error) {
+
+    console.error(
+      "Session check failed:",
+      error
+    );
+
+  }
+
+}
+
+
+/* =========================================
+   SUPABASE AUTH STATE LISTENER
+========================================= */
+
+supabaseClient.auth.onAuthStateChange(
+  (event, session) => {
+
+    if (
+      event === "SIGNED_OUT"
+    ) {
+
+      currentUser = null;
+
+      showLoginScreen();
+
+    }
+
+  }
+);
 
 
 /* =========================================
    LOGIN
 ========================================= */
 
-function login() {
+async function login() {
 
   const email =
-    document.getElementById("loginEmail").value.trim();
+    document
+      .getElementById("loginEmail")
+      .value
+      .trim();
 
   const password =
-    document.getElementById("loginPassword").value.trim();
+    document
+      .getElementById("loginPassword")
+      .value
+      .trim();
 
 
   if (!email || !password) {
 
-    showToast("Please enter your email and password.");
+    showToast(
+      "Please enter your email and password."
+    );
 
     return;
+
   }
 
 
-  enterMailApp();
+  showToast(
+    "Signing in..."
+  );
+
+
+  try {
+
+    const {
+      data,
+      error
+    } =
+      await supabaseClient.auth.signInWithPassword({
+
+        email: email,
+
+        password: password
+
+      });
+
+
+    if (error) {
+
+      console.error(
+        "Login error:",
+        error
+      );
+
+      showToast(
+        error.message
+      );
+
+      return;
+
+    }
+
+
+    if (
+      data &&
+      data.user
+    ) {
+
+      currentUser =
+        data.user;
+
+      enterMailApp(
+        currentUser,
+        true
+      );
+
+    } else {
+
+      showToast(
+        "Login failed. Please try again."
+      );
+
+    }
+
+  } catch (error) {
+
+    console.error(
+      "Login failed:",
+      error
+    );
+
+    showToast(
+      "Unable to sign in. Please try again."
+    );
+
+  }
+
 }
 
+
+/* =========================================
+   DEMO LOGIN
+========================================= */
 
 function demoLogin() {
 
-  document.getElementById("loginEmail").value =
-    "alex@example.com";
+  document
+    .getElementById("loginEmail")
+    .value =
+      "alex@example.com";
 
-  document.getElementById("loginPassword").value =
-    "demo";
+  document
+    .getElementById("loginPassword")
+    .value =
+      "demo";
 
-  enterMailApp();
+
+  enterMailApp(
+    null,
+    true,
+    true
+  );
 
 }
 
 
-function enterMailApp() {
+/* =========================================
+   ENTER MAIL APP
+========================================= */
+
+function enterMailApp(
+  user = null,
+  showWelcome = true,
+  demo = false
+) {
+
+  if (user) {
+
+    currentUser =
+      user;
+
+  }
+
+
+  updateUserProfile(
+    user,
+    demo
+  );
+
 
   document
     .getElementById("loginScreen")
-    .classList.add("hidden");
+    .classList
+    .add("hidden");
+
 
   document
     .getElementById("signupScreen")
-    .classList.add("hidden");
+    .classList
+    .add("hidden");
+
 
   document
     .getElementById("mailApp")
-    .classList.remove("hidden");
+    .classList
+    .remove("hidden");
+
 
   renderEmails();
 
-  showToast("Welcome to Prime Mail.");
+
+  if (showWelcome) {
+
+    if (demo) {
+
+      showToast(
+        "Welcome to Prime Mail Demo."
+      );
+
+    } else {
+
+      showToast(
+        "Welcome to Prime Mail."
+      );
+
+    }
+
+  }
+
+}
+
+
+/* =========================================
+   UPDATE USER PROFILE
+========================================= */
+
+function updateUserProfile(
+  user,
+  demo = false
+) {
+
+  let name =
+    "Prime Mail User";
+
+  let email =
+    "user@example.com";
+
+
+  if (demo) {
+
+    name =
+      "Alex User";
+
+    email =
+      "alex@example.com";
+
+  }
+
+
+  if (user) {
+
+    email =
+      user.email ||
+      email;
+
+
+    const metadata =
+      user.user_metadata ||
+      {};
+
+
+    name =
+      metadata.full_name ||
+      metadata.name ||
+      email.split("@")[0] ||
+      name;
+
+  }
+
+
+  const firstLetter =
+    name
+      .trim()
+      .charAt(0)
+      .toUpperCase() ||
+      "P";
+
+
+  const profileName =
+    document.querySelector(
+      ".profile-name"
+    );
+
+
+  const profileAvatar =
+    document.querySelector(
+      ".profile-button .avatar"
+    );
+
+
+  const profileFullName =
+    document.getElementById(
+      "profileFullName"
+    );
+
+
+  const profileEmail =
+    document.getElementById(
+      "profileEmail"
+    );
+
+
+  const largeAvatar =
+    document.querySelector(
+      ".large-avatar"
+    );
+
+
+  if (profileName) {
+
+    profileName.textContent =
+      name;
+
+  }
+
+
+  if (profileAvatar) {
+
+    profileAvatar.textContent =
+      firstLetter;
+
+  }
+
+
+  if (largeAvatar) {
+
+    largeAvatar.textContent =
+      firstLetter;
+
+  }
+
+
+  if (profileFullName) {
+
+    profileFullName.textContent =
+      name;
+
+  }
+
+
+  if (profileEmail) {
+
+    profileEmail.textContent =
+      email;
+
+  }
 
 }
 
@@ -191,23 +564,35 @@ function enterMailApp() {
    SIGNUP
 ========================================= */
 
-function signup() {
+async function signup() {
 
   const name =
-    document.getElementById("signupName").value.trim();
+    document
+      .getElementById("signupName")
+      .value
+      .trim();
 
   const email =
-    document.getElementById("signupEmail").value.trim();
+    document
+      .getElementById("signupEmail")
+      .value
+      .trim();
 
   const password =
-    document.getElementById("signupPassword").value.trim();
+    document
+      .getElementById("signupPassword")
+      .value
+      .trim();
 
 
   if (!name || !email || !password) {
 
-    showToast("Please complete all fields.");
+    showToast(
+      "Please complete all fields."
+    );
 
     return;
+
   }
 
 
@@ -218,22 +603,143 @@ function signup() {
     );
 
     return;
+
   }
 
 
   showToast(
-    "Demo account created successfully."
+    "Creating your account..."
   );
 
 
-  setTimeout(() => {
+  try {
 
-    showLogin();
+    const {
+      data,
+      error
+    } =
+      await supabaseClient.auth.signUp({
 
-    document.getElementById("loginEmail").value =
-      email;
+        email: email,
 
-  }, 700);
+        password: password,
+
+        options: {
+
+          data: {
+
+            full_name: name
+
+          }
+
+        }
+
+      });
+
+
+    if (error) {
+
+      console.error(
+        "Signup error:",
+        error
+      );
+
+      showToast(
+        error.message
+      );
+
+      return;
+
+    }
+
+
+    /*
+      Supabase Email Confirmation
+      is currently OFF in your project.
+
+      Therefore a session should normally
+      be returned immediately.
+    */
+
+    if (
+      data &&
+      data.session &&
+      data.user
+    ) {
+
+      currentUser =
+        data.user;
+
+      enterMailApp(
+        currentUser,
+        true
+      );
+
+      clearSignupFields();
+
+      return;
+
+    }
+
+
+    /*
+      Fallback in case email confirmation
+      is enabled later.
+    */
+
+    showToast(
+      "Account created. Please sign in."
+    );
+
+
+    setTimeout(
+      () => {
+
+        showLogin();
+
+        document
+          .getElementById("loginEmail")
+          .value =
+            email;
+
+      },
+      900
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "Signup failed:",
+      error
+    );
+
+    showToast(
+      "Unable to create account."
+    );
+
+  }
+
+}
+
+
+/* =========================================
+   CLEAR SIGNUP FIELDS
+========================================= */
+
+function clearSignupFields() {
+
+  document
+    .getElementById("signupName")
+    .value = "";
+
+  document
+    .getElementById("signupEmail")
+    .value = "";
+
+  document
+    .getElementById("signupPassword")
+    .value = "";
 
 }
 
@@ -246,11 +752,14 @@ function showSignup() {
 
   document
     .getElementById("loginScreen")
-    .classList.add("hidden");
+    .classList
+    .add("hidden");
+
 
   document
     .getElementById("signupScreen")
-    .classList.remove("hidden");
+    .classList
+    .remove("hidden");
 
 }
 
@@ -259,20 +768,91 @@ function showLogin() {
 
   document
     .getElementById("signupScreen")
-    .classList.add("hidden");
+    .classList
+    .add("hidden");
+
+
+  document
+    .getElementById("mailApp")
+    .classList
+    .add("hidden");
+
 
   document
     .getElementById("loginScreen")
-    .classList.remove("hidden");
+    .classList
+    .remove("hidden");
 
 }
 
 
-function showForgotPassword() {
+/* =========================================
+   FORGOT PASSWORD
+========================================= */
 
-  showToast(
-    "Password recovery will be connected to Supabase in the next version."
-  );
+async function showForgotPassword() {
+
+  const email =
+    document
+      .getElementById("loginEmail")
+      .value
+      .trim();
+
+
+  if (!email) {
+
+    showToast(
+      "Please enter your email first."
+    );
+
+    return;
+
+  }
+
+
+  try {
+
+    const {
+      error
+    } =
+      await supabaseClient.auth
+        .resetPasswordForEmail(
+          email,
+          {
+            redirectTo:
+              window.location.origin
+          }
+        );
+
+
+    if (error) {
+
+      showToast(
+        error.message
+      );
+
+      return;
+
+    }
+
+
+    showToast(
+      "Password reset email sent."
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "Password reset error:",
+      error
+    );
+
+    showToast(
+      "Password reset could not be started."
+    );
+
+  }
 
 }
 
@@ -281,21 +861,86 @@ function showForgotPassword() {
    LOGOUT
 ========================================= */
 
-function logout() {
+async function logout() {
+
+  try {
+
+    const {
+      error
+    } =
+      await supabaseClient.auth.signOut();
+
+
+    if (error) {
+
+      console.error(
+        "Logout error:",
+        error
+      );
+
+      showToast(
+        error.message
+      );
+
+      return;
+
+    }
+
+
+    currentUser = null;
+
+    showLoginScreen();
+
+
+    showToast(
+      "You have been signed out."
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "Logout failed:",
+      error
+    );
+
+    showToast(
+      "Unable to sign out."
+    );
+
+  }
+
+}
+
+
+/* =========================================
+   SHOW LOGIN SCREEN
+========================================= */
+
+function showLoginScreen() {
 
   document
     .getElementById("mailApp")
-    .classList.add("hidden");
+    .classList
+    .add("hidden");
+
+
+  document
+    .getElementById("signupScreen")
+    .classList
+    .add("hidden");
+
 
   document
     .getElementById("loginScreen")
-    .classList.remove("hidden");
+    .classList
+    .remove("hidden");
+
 
   document
     .getElementById("profileMenu")
-    .classList.add("hidden");
-
-  showToast("You have been signed out.");
+    .classList
+    .add("hidden");
 
 }
 
@@ -307,142 +952,212 @@ function logout() {
 function renderEmails() {
 
   const list =
-    document.getElementById("emailList");
+    document.getElementById(
+      "emailList"
+    );
 
   const empty =
-    document.getElementById("emptyState");
+    document.getElementById(
+      "emptyState"
+    );
 
 
   list.innerHTML = "";
 
 
   let filtered =
-    emails.filter(email => {
+    emails.filter(
+      email => {
 
-      if (currentFolder === "starred") {
+        if (
+          currentFolder ===
+          "starred"
+        ) {
 
-        return email.starred;
+          return email.starred;
+
+        }
+
+
+        return (
+          email.folder ===
+          currentFolder
+        );
 
       }
-
-      return email.folder === currentFolder;
-
-    });
+    );
 
 
   if (searchTerm) {
 
-    filtered = filtered.filter(email => {
+    filtered =
+      filtered.filter(
+        email => {
 
-      const content =
-        `${email.sender}
-         ${email.email}
-         ${email.subject}
-         ${email.preview}`
-        .toLowerCase();
+          const content =
+            `${email.sender}
+             ${email.email}
+             ${email.subject}
+             ${email.preview}`
+              .toLowerCase();
 
-      return content.includes(
-        searchTerm.toLowerCase()
+
+          return content.includes(
+            searchTerm.toLowerCase()
+          );
+
+        }
       );
-
-    });
 
   }
 
 
-  if (filtered.length === 0) {
+  if (
+    filtered.length === 0
+  ) {
 
-    empty.classList.remove("hidden");
+    empty
+      .classList
+      .remove("hidden");
 
     return;
 
   }
 
 
-  empty.classList.add("hidden");
+  empty
+    .classList
+    .add("hidden");
 
 
-  filtered.forEach(email => {
+  filtered.forEach(
+    email => {
 
-    const row =
-      document.createElement("div");
-
-    row.className =
-      "email-row" +
-      (email.unread ? " unread" : "");
-
-    row.dataset.id = email.id;
+      const row =
+        document.createElement(
+          "div"
+        );
 
 
-    row.innerHTML = `
-
-      <input
-        class="email-checkbox"
-        type="checkbox"
-        onclick="event.stopPropagation()"
-      >
-
-      <button
-        class="star-button ${email.starred ? "starred" : ""}"
-        onclick="toggleStar(event, ${email.id})"
-      >
-        ${email.starred ? "★" : "☆"}
-      </button>
-
-      <div
-        class="email-sender"
-        title="${escapeHTML(email.email)}"
-      >
-        ${escapeHTML(email.sender)}
-      </div>
-
-      <div class="email-main">
-
-        <span class="email-subject">
-          ${escapeHTML(email.subject)}
-        </span>
-
-        <span> — </span>
-
-        <span class="email-preview">
-          ${escapeHTML(email.preview)}
-        </span>
-
-      </div>
-
-      ${
-        email.attachment
-          ? `<span class="attachment-icon">📎</span>`
-          : ""
-      }
-
-      <div class="email-date">
-        ${escapeHTML(email.date)}
-      </div>
-
-    `;
+      row.className =
+        "email-row" +
+        (
+          email.unread
+            ? " unread"
+            : ""
+        );
 
 
-    row.addEventListener(
-      "click",
-      event => {
+      row.dataset.id =
+        email.id;
 
-        if (
-          event.target.closest(".star-button") ||
-          event.target.closest(".email-checkbox")
-        ) {
-          return;
+
+      row.innerHTML = `
+
+        <input
+          class="email-checkbox"
+          type="checkbox"
+          onclick="event.stopPropagation()"
+        >
+
+        <button
+          class="star-button ${
+            email.starred
+              ? "starred"
+              : ""
+          }"
+          onclick="toggleStar(
+            event,
+            ${email.id}
+          )"
+        >
+          ${
+            email.starred
+              ? "★"
+              : "☆"
+          }
+        </button>
+
+        <div
+          class="email-sender"
+          title="${escapeHTML(
+            email.email
+          )}"
+        >
+          ${escapeHTML(
+            email.sender
+          )}
+        </div>
+
+        <div class="email-main">
+
+          <span class="email-subject">
+            ${escapeHTML(
+              email.subject
+            )}
+          </span>
+
+          <span> — </span>
+
+          <span class="email-preview">
+            ${escapeHTML(
+              email.preview
+            )}
+          </span>
+
+        </div>
+
+        ${
+          email.attachment
+            ? `
+              <span class="attachment-icon">
+                📎
+              </span>
+            `
+            : ""
         }
 
-        openEmail(email.id);
+        <div class="email-date">
+          ${escapeHTML(
+            email.date
+          )}
+        </div>
 
-      }
-    );
+      `;
 
 
-    list.appendChild(row);
+      row.addEventListener(
+        "click",
+        event => {
 
-  });
+          if (
+            event.target.closest(
+              ".star-button"
+            ) ||
+            event.target.closest(
+              ".email-checkbox"
+            )
+          ) {
+
+            return;
+
+          }
+
+
+          openEmail(
+            email.id
+          );
+
+        }
+      );
+
+
+      list.appendChild(
+        row
+      );
+
+    }
+  );
 
 }
 
@@ -451,24 +1166,39 @@ function renderEmails() {
    FOLDERS
 ========================================= */
 
-function openFolder(folder) {
+function openFolder(
+  folder
+) {
 
-  currentFolder = folder;
+  currentFolder =
+    folder;
 
-  searchTerm = "";
+  searchTerm =
+    "";
+
 
   document
-    .getElementById("searchInput")
+    .getElementById(
+      "searchInput"
+    )
     .value = "";
 
 
   document
-    .querySelectorAll(".nav-item")
-    .forEach(button => {
+    .querySelectorAll(
+      ".nav-item"
+    )
+    .forEach(
+      button => {
 
-      button.classList.remove("active");
+        button
+          .classList
+          .remove(
+            "active"
+          );
 
-    });
+      }
+    );
 
 
   const active =
@@ -479,7 +1209,9 @@ function openFolder(folder) {
 
   if (active) {
 
-    active.classList.add("active");
+    active
+      .classList
+      .add("active");
 
   }
 
@@ -521,17 +1253,26 @@ function openFolder(folder) {
 
   const data =
     titles[folder] ||
-    ["Mail", "Your messages"];
+    [
+      "Mail",
+      "Your messages"
+    ];
 
 
   document
-    .getElementById("folderTitle")
-    .textContent = data[0];
+    .getElementById(
+      "folderTitle"
+    )
+    .textContent =
+      data[0];
 
 
   document
-    .getElementById("folderDescription")
-    .textContent = data[1];
+    .getElementById(
+      "folderDescription"
+    )
+    .textContent =
+      data[1];
 
 
   renderEmails();
@@ -549,9 +1290,12 @@ function searchMail() {
 
   searchTerm =
     document
-      .getElementById("searchInput")
+      .getElementById(
+        "searchInput"
+      )
       .value
       .trim();
+
 
   renderEmails();
 
@@ -562,16 +1306,26 @@ function searchMail() {
    STAR
 ========================================= */
 
-function toggleStar(event, id) {
+function toggleStar(
+  event,
+  id
+) {
 
   event.stopPropagation();
 
 
   const email =
-    emails.find(item => item.id === id);
+    emails.find(
+      item =>
+        item.id === id
+    );
 
 
-  if (!email) return;
+  if (!email) {
+
+    return;
+
+  }
 
 
   email.starred =
@@ -579,6 +1333,7 @@ function toggleStar(event, id) {
 
 
   renderEmails();
+
 
   showToast(
     email.starred
@@ -593,16 +1348,26 @@ function toggleStar(event, id) {
    OPEN EMAIL
 ========================================= */
 
-function openEmail(id) {
+function openEmail(
+  id
+) {
 
   const email =
-    emails.find(item => item.id === id);
+    emails.find(
+      item =>
+        item.id === id
+    );
 
 
-  if (!email) return;
+  if (!email) {
+
+    return;
+
+  }
 
 
-  email.unread = false;
+  email.unread =
+    false;
 
 
   showToast(
@@ -622,16 +1387,25 @@ function openEmail(id) {
 function toggleSelectAll() {
 
   const checked =
-    document.getElementById("selectAll").checked;
+    document
+      .getElementById(
+        "selectAll"
+      )
+      .checked;
 
 
   document
-    .querySelectorAll(".email-checkbox")
-    .forEach(box => {
+    .querySelectorAll(
+      ".email-checkbox"
+    )
+    .forEach(
+      box => {
 
-      box.checked = checked;
+        box.checked =
+          checked;
 
-    });
+      }
+    );
 
 }
 
@@ -650,46 +1424,68 @@ function deleteSelected() {
     );
 
 
-  if (selected.length === 0) {
+  if (
+    selected.length === 0
+  ) {
 
-    showToast("Select an email first.");
+    showToast(
+      "Select an email first."
+    );
 
     return;
+
   }
 
 
   const ids =
-    selected.map(box => {
+    selected.map(
+      box => {
 
-      return Number(
-        box.closest(".email-row").dataset.id
-      );
+        return Number(
+          box
+            .closest(
+              ".email-row"
+            )
+            .dataset.id
+        );
 
-    });
+      }
+    );
 
 
-  ids.forEach(id => {
+  ids.forEach(
+    id => {
 
-    const email =
-      emails.find(item => item.id === id);
+      const email =
+        emails.find(
+          item =>
+            item.id === id
+        );
 
-    if (email) {
 
-      email.folder = "trash";
+      if (email) {
+
+        email.folder =
+          "trash";
+
+      }
 
     }
-
-  });
+  );
 
 
   document
-    .getElementById("selectAll")
-    .checked = false;
+    .getElementById(
+      "selectAll"
+    )
+    .checked =
+      false;
 
 
   updateCounts();
 
   renderEmails();
+
 
   showToast(
     `${ids.length} message(s) moved to Trash.`
@@ -712,38 +1508,56 @@ function archiveSelected() {
     );
 
 
-  if (selected.length === 0) {
+  if (
+    selected.length === 0
+  ) {
 
-    showToast("Select an email first.");
+    showToast(
+      "Select an email first."
+    );
 
     return;
+
   }
 
 
-  selected.forEach(box => {
+  selected.forEach(
+    box => {
 
-    const id =
-      Number(
-        box.closest(".email-row").dataset.id
-      );
+      const id =
+        Number(
+          box
+            .closest(
+              ".email-row"
+            )
+            .dataset.id
+        );
 
 
-    const email =
-      emails.find(item => item.id === id);
+      const email =
+        emails.find(
+          item =>
+            item.id === id
+        );
 
 
-    if (email) {
+      if (email) {
 
-      email.folder = "archive";
+        email.folder =
+          "archive";
+
+      }
 
     }
-
-  });
+  );
 
 
   renderEmails();
 
-  showToast("Messages archived.");
+
+  showToast(
+    "Messages archived."
+  );
 
 }
 
@@ -754,16 +1568,23 @@ function archiveSelected() {
 
 function refreshMail() {
 
-  showToast("Checking for new messages...");
+  showToast(
+    "Checking for new messages..."
+  );
 
 
-  setTimeout(() => {
+  setTimeout(
+    () => {
 
-    renderEmails();
+      renderEmails();
 
-    showToast("Inbox is up to date.");
+      showToast(
+        "Inbox is up to date."
+      );
 
-  }, 700);
+    },
+    700
+  );
 
 }
 
@@ -775,18 +1596,28 @@ function refreshMail() {
 function openCompose() {
 
   const compose =
-    document.getElementById("composeWindow");
+    document.getElementById(
+      "composeWindow"
+    );
 
 
-  compose.classList.remove("hidden");
+  compose
+    .classList
+    .remove("hidden");
 
-  composeMinimized = false;
 
-  compose.style.height = "";
+  composeMinimized =
+    false;
+
+
+  compose.style.height =
+    "";
 
 
   document
-    .getElementById("composeTo")
+    .getElementById(
+      "composeTo"
+    )
     .focus();
 
 }
@@ -795,22 +1626,31 @@ function openCompose() {
 function closeCompose() {
 
   document
-    .getElementById("composeWindow")
-    .classList.add("hidden");
+    .getElementById(
+      "composeWindow"
+    )
+    .classList
+    .add("hidden");
 
 
   document
-    .getElementById("composeTo")
+    .getElementById(
+      "composeTo"
+    )
     .value = "";
 
 
   document
-    .getElementById("composeSubject")
+    .getElementById(
+      "composeSubject"
+    )
     .value = "";
 
 
   document
-    .getElementById("composeMessage")
+    .getElementById(
+      "composeMessage"
+    )
     .value = "";
 
 }
@@ -819,7 +1659,9 @@ function closeCompose() {
 function minimizeCompose() {
 
   const compose =
-    document.getElementById("composeWindow");
+    document.getElementById(
+      "composeWindow"
+    );
 
 
   composeMinimized =
@@ -828,11 +1670,13 @@ function minimizeCompose() {
 
   if (composeMinimized) {
 
-    compose.style.height = "45px";
+    compose.style.height =
+      "45px";
 
   } else {
 
-    compose.style.height = "";
+    compose.style.height =
+      "";
 
   }
 
@@ -840,35 +1684,43 @@ function minimizeCompose() {
 
 
 /* =========================================
-   SEND EMAIL
+   SEND EMAIL - DEMO
 ========================================= */
 
 function sendEmail() {
 
   const to =
     document
-      .getElementById("composeTo")
+      .getElementById(
+        "composeTo"
+      )
       .value
       .trim();
 
 
   const subject =
     document
-      .getElementById("composeSubject")
+      .getElementById(
+        "composeSubject"
+      )
       .value
       .trim();
 
 
   const message =
     document
-      .getElementById("composeMessage")
+      .getElementById(
+        "composeMessage"
+      )
       .value
       .trim();
 
 
   if (!to) {
 
-    showToast("Please enter a recipient.");
+    showToast(
+      "Please enter a recipient."
+    );
 
     return;
 
@@ -877,7 +1729,9 @@ function sendEmail() {
 
   if (!subject) {
 
-    showToast("Please enter a subject.");
+    showToast(
+      "Please enter a subject."
+    );
 
     return;
 
@@ -886,7 +1740,9 @@ function sendEmail() {
 
   if (!message) {
 
-    showToast("Please write a message.");
+    showToast(
+      "Please write a message."
+    );
 
     return;
 
@@ -895,40 +1751,53 @@ function sendEmail() {
 
   emails.unshift({
 
-    id: Date.now(),
+    id:
+      Date.now(),
 
-    folder: "sent",
+    folder:
+      "sent",
 
-    sender: "You",
+    sender:
+      "You",
 
-    email: to,
+    email:
+      to,
 
-    subject: subject,
+    subject:
+      subject,
 
-    preview: message,
+    preview:
+      message,
 
-    date: "Just now",
+    date:
+      "Just now",
 
-    unread: false,
+    unread:
+      false,
 
-    starred: false,
+    starred:
+      false,
 
-    attachment: false
+    attachment:
+      false
 
   });
 
 
   closeCompose();
 
-
   updateCounts();
+
 
   showToast(
     "Demo message added to Sent."
   );
 
 
-  if (currentFolder === "sent") {
+  if (
+    currentFolder ===
+    "sent"
+  ) {
 
     renderEmails();
 
@@ -946,16 +1815,25 @@ function toggleTheme() {
   document
     .body
     .classList
-    .toggle("dark");
+    .toggle(
+      "dark"
+    );
 
 
   const dark =
-    document.body.classList.contains("dark");
+    document
+      .body
+      .classList
+      .contains(
+        "dark"
+      );
 
 
   localStorage.setItem(
     "prime-theme",
-    dark ? "dark" : "light"
+    dark
+      ? "dark"
+      : "light"
   );
 
 }
@@ -964,10 +1842,15 @@ function toggleTheme() {
 function loadTheme() {
 
   const theme =
-    localStorage.getItem("prime-theme");
+    localStorage.getItem(
+      "prime-theme"
+    );
 
 
-  if (theme === "dark") {
+  if (
+    theme ===
+    "dark"
+  ) {
 
     document
       .body
@@ -986,9 +1869,13 @@ function loadTheme() {
 function toggleProfileMenu() {
 
   document
-    .getElementById("profileMenu")
+    .getElementById(
+      "profileMenu"
+    )
     .classList
-    .toggle("hidden");
+    .toggle(
+      "hidden"
+    );
 
 }
 
@@ -998,19 +1885,31 @@ document.addEventListener(
   event => {
 
     const menu =
-      document.getElementById("profileMenu");
+      document.getElementById(
+        "profileMenu"
+      );
 
     const profile =
-      document.querySelector(".profile-button");
+      document.querySelector(
+        ".profile-button"
+      );
 
 
     if (
-      !menu.classList.contains("hidden") &&
-      !menu.contains(event.target) &&
-      !profile.contains(event.target)
+      !menu.classList.contains(
+        "hidden"
+      ) &&
+      !menu.contains(
+        event.target
+      ) &&
+      !profile.contains(
+        event.target
+      )
     ) {
 
-      menu.classList.add("hidden");
+      menu
+        .classList
+        .add("hidden");
 
     }
 
@@ -1028,8 +1927,11 @@ function showSettings() {
     "Settings will be connected in the next version."
   );
 
+
   document
-    .getElementById("profileMenu")
+    .getElementById(
+      "profileMenu"
+    )
     .classList
     .add("hidden");
 
@@ -1070,9 +1972,13 @@ function addLabel() {
 function toggleSidebar() {
 
   document
-    .getElementById("sidebar")
+    .getElementById(
+      "sidebar"
+    )
     .classList
-    .toggle("mobile-open");
+    .toggle(
+      "mobile-open"
+    );
 
 }
 
@@ -1080,9 +1986,13 @@ function toggleSidebar() {
 function closeMobileSidebar() {
 
   document
-    .getElementById("sidebar")
+    .getElementById(
+      "sidebar"
+    )
     .classList
-    .remove("mobile-open");
+    .remove(
+      "mobile-open"
+    );
 
 }
 
@@ -1118,13 +2028,16 @@ function updateCounts() {
   const inboxCount =
     emails.filter(
       email =>
-        email.folder === "inbox" &&
+        email.folder ===
+          "inbox" &&
         email.unread
     ).length;
 
 
   const inboxElement =
-    document.getElementById("inboxCount");
+    document.getElementById(
+      "inboxCount"
+    );
 
 
   if (inboxElement) {
@@ -1144,53 +2057,97 @@ function updateCounts() {
 let toastTimer;
 
 
-function showToast(message) {
+function showToast(
+  message
+) {
 
   const toast =
-    document.getElementById("toast");
+    document.getElementById(
+      "toast"
+    );
 
 
   const messageElement =
-    document.getElementById("toastMessage");
+    document.getElementById(
+      "toastMessage"
+    );
+
+
+  if (
+    !toast ||
+    !messageElement
+  ) {
+
+    return;
+
+  }
 
 
   messageElement.textContent =
     message;
 
 
-  toast.classList.remove("hidden");
+  toast
+    .classList
+    .remove(
+      "hidden"
+    );
 
 
-  clearTimeout(toastTimer);
+  clearTimeout(
+    toastTimer
+  );
 
 
   toastTimer =
-    setTimeout(() => {
+    setTimeout(
+      () => {
 
-      toast.classList.add("hidden");
+        toast
+          .classList
+          .add("hidden");
 
-    }, 2800);
+      },
+      2800
+    );
 
 }
 
 
 /* =========================================
    SECURITY
-   Basic HTML escaping for demo content
+   Basic HTML escaping
 ========================================= */
 
-function escapeHTML(value) {
+function escapeHTML(
+  value
+) {
 
   return String(value)
 
-    .replaceAll("&", "&amp;")
+    .replaceAll(
+      "&",
+      "&amp;"
+    )
 
-    .replaceAll("<", "&lt;")
+    .replaceAll(
+      "<",
+      "&lt;"
+    )
 
-    .replaceAll(">", "&gt;")
+    .replaceAll(
+      ">",
+      "&gt;"
+    )
 
-    .replaceAll('"', "&quot;")
+    .replaceAll(
+      '"',
+      "&quot;"
+    )
 
-    .replaceAll("'", "&#039;");
+    .replaceAll(
+      "'",
+      "&#039;"
+    );
 
 }
