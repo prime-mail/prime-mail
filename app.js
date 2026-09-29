@@ -1,13 +1,13 @@
-```javascript
-/* =========================================
+/* =========================================================
    PRIME MAIL
    Real Supabase Authentication + Mailbox
-========================================= */
+   Clean version
+========================================================= */
 
 
-/* =========================================
+/* =========================================================
    SUPABASE
-========================================= */
+========================================================= */
 
 const SUPABASE_URL =
   "https://spikrkbjhsqapoqhkkqp.supabase.co";
@@ -15,44 +15,91 @@ const SUPABASE_URL =
 const SUPABASE_PUBLISHABLE_KEY =
   "sb_publishable_BrRmSLwqYP0_tZLIcksRGQ_Kd6S6CtI";
 
-const supabaseClient =
-  window.supabase.createClient(
-    SUPABASE_URL,
-    SUPABASE_PUBLISHABLE_KEY
-  );
+
+let supabaseClient = null;
 
 
-/* =========================================
+/* =========================================================
    APP STATE
-========================================= */
+========================================================= */
 
 let currentUser = null;
-
 let currentProfile = null;
 
 let currentFolder = "inbox";
-
 let searchTerm = "";
 
 let composeMinimized = false;
 
 let emails = [];
 
+let toastTimer = null;
 
-/* =========================================
+
+/* =========================================================
+   START SUPABASE
+========================================================= */
+
+function initializeSupabase() {
+
+  if (!window.supabase) {
+
+    console.error(
+      "Supabase library was not loaded."
+    );
+
+    return false;
+  }
+
+  try {
+
+    supabaseClient =
+      window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_PUBLISHABLE_KEY
+      );
+
+    return true;
+
+  } catch (error) {
+
+    console.error(
+      "Supabase initialization error:",
+      error
+    );
+
+    return false;
+  }
+}
+
+
+/* =========================================================
    INITIALIZATION
-========================================= */
+========================================================= */
 
 document.addEventListener(
   "DOMContentLoaded",
-  async () => {
+  async function () {
 
     loadTheme();
 
+    const ready =
+      initializeSupabase();
+
+    if (!ready) {
+
+      showToast(
+        "Prime Mail could not connect to Supabase."
+      );
+
+      return;
+    }
+
     await checkExistingSession();
 
+
     supabaseClient.auth.onAuthStateChange(
-      async (event, session) => {
+      async function (event, session) {
 
         if (event === "SIGNED_OUT") {
 
@@ -65,14 +112,18 @@ document.addEventListener(
           return;
         }
 
-        if (session && session.user) {
 
-          currentUser = session.user;
+        if (
+          session &&
+          session.user
+        ) {
+
+          currentUser =
+            session.user;
 
           await loadUserProfile();
 
           await enterMailApp();
-
         }
 
       }
@@ -82,64 +133,102 @@ document.addEventListener(
 );
 
 
-/* =========================================
-   SESSION
-========================================= */
+/* =========================================================
+   EXISTING SESSION
+========================================================= */
 
 async function checkExistingSession() {
 
-  const {
-    data,
-    error
-  } = await supabaseClient.auth.getSession();
-
-  if (error) {
-
-    console.error(error);
-
+  if (!supabaseClient) {
     return;
-
   }
 
-  if (data.session && data.session.user) {
 
-    currentUser = data.session.user;
+  const result =
+    await supabaseClient.auth.getSession();
+
+
+  if (result.error) {
+
+    console.error(
+      "Session error:",
+      result.error
+    );
+
+    return;
+  }
+
+
+  const session =
+    result.data.session;
+
+
+  if (
+    session &&
+    session.user
+  ) {
+
+    currentUser =
+      session.user;
 
     await loadUserProfile();
 
     await enterMailApp();
-
   }
 
 }
 
 
-/* =========================================
+/* =========================================================
    LOGIN
-========================================= */
+========================================================= */
 
 async function login() {
 
+  if (!supabaseClient) {
+
+    showToast(
+      "Supabase is not connected."
+    );
+
+    return;
+  }
+
+
+  const emailInput =
+    document.getElementById(
+      "loginEmail"
+    );
+
+  const passwordInput =
+    document.getElementById(
+      "loginPassword"
+    );
+
+
   const email =
-    document
-      .getElementById("loginEmail")
-      .value
-      .trim();
+    emailInput
+      ? emailInput.value.trim()
+      : "";
 
   const password =
-    document
-      .getElementById("loginPassword")
-      .value;
+    passwordInput
+      ? passwordInput.value
+      : "";
 
-  if (!email || !password) {
+
+  if (
+    !email ||
+    !password
+  ) {
 
     showToast(
       "Please enter your email and password."
     );
 
     return;
-
   }
+
 
   setButtonLoading(
     "loginButton",
@@ -147,90 +236,159 @@ async function login() {
     "Signing in..."
   );
 
-  const {
-    data,
-    error
-  } =
-    await supabaseClient.auth.signInWithPassword({
-      email: email,
-      password: password
-    });
 
-  setButtonLoading(
-    "loginButton",
-    false,
-    "Sign in"
-  );
+  try {
 
-  if (error) {
+    const result =
+      await supabaseClient.auth.signInWithPassword({
+        email: email,
+        password: password
+      });
 
-    showToast(
-      error.message
+
+    setButtonLoading(
+      "loginButton",
+      false,
+      "Sign in"
     );
 
-    return;
 
+    if (result.error) {
+
+      console.error(
+        "Login error:",
+        result.error
+      );
+
+      showToast(
+        result.error.message
+      );
+
+      return;
+    }
+
+
+    currentUser =
+      result.data.user;
+
+
+    await loadUserProfile();
+
+    await enterMailApp();
+
+
+    showToast(
+      "Welcome to Prime Mail."
+    );
+
+
+  } catch (error) {
+
+    setButtonLoading(
+      "loginButton",
+      false,
+      "Sign in"
+    );
+
+    console.error(
+      "Unexpected login error:",
+      error
+    );
+
+    showToast(
+      "Login failed. Please try again."
+    );
   }
-
-  currentUser = data.user;
-
-  await loadUserProfile();
-
-  await enterMailApp();
 
 }
 
 
-/* =========================================
-   REAL SIGNUP
-========================================= */
+/* =========================================================
+   SIGNUP
+========================================================= */
 
 async function signup() {
 
+  if (!supabaseClient) {
+
+    showToast(
+      "Supabase is not connected."
+    );
+
+    return;
+  }
+
+
+  const nameInput =
+    document.getElementById(
+      "signupName"
+    );
+
+  const usernameInput =
+    document.getElementById(
+      "signupUsername"
+    );
+
+  const emailInput =
+    document.getElementById(
+      "signupEmail"
+    );
+
+  const passwordInput =
+    document.getElementById(
+      "signupPassword"
+    );
+
+
   const name =
-    document
-      .getElementById("signupName")
-      .value
-      .trim();
+    nameInput
+      ? nameInput.value.trim()
+      : "";
 
   const username =
-    document
-      .getElementById("signupUsername")
-      .value
-      .trim()
-      .toLowerCase();
+    usernameInput
+      ? usernameInput.value.trim().toLowerCase()
+      : "";
 
   const email =
-    document
-      .getElementById("signupEmail")
-      .value
-      .trim()
-      .toLowerCase();
+    emailInput
+      ? emailInput.value.trim().toLowerCase()
+      : "";
 
   const password =
-    document
-      .getElementById("signupPassword")
-      .value;
+    passwordInput
+      ? passwordInput.value
+      : "";
 
-  if (!name || !username || !email || !password) {
+
+  if (
+    !name ||
+    !username ||
+    !email ||
+    !password
+  ) {
 
     showToast(
       "Please complete all fields."
     );
 
     return;
-
   }
 
-  if (!/^[a-z0-9_]{3,30}$/.test(username)) {
+
+  if (
+    !/^[a-z0-9_]{3,30}$/.test(
+      username
+    )
+  ) {
 
     showToast(
       "Username must be 3-30 characters: letters, numbers or underscore."
     );
 
     return;
-
   }
+
 
   if (password.length < 6) {
 
@@ -239,8 +397,8 @@ async function signup() {
     );
 
     return;
-
   }
+
 
   setButtonLoading(
     "signupButton",
@@ -249,233 +407,305 @@ async function signup() {
   );
 
 
-  /*
-    Check whether username is already used.
-  */
+  try {
 
-  const {
-    data: existingUsername,
-    error: usernameError
-  } =
-    await supabaseClient
-      .from("profiles")
-      .select("id")
-      .eq("username", username)
-      .maybeSingle();
+    /*
+      Check username.
+    */
 
-
-  if (usernameError) {
-
-    setButtonLoading(
-      "signupButton",
-      false,
-      "Create account"
-    );
-
-    showToast(
-      usernameError.message
-    );
-
-    return;
-
-  }
+    const usernameResult =
+      await supabaseClient
+        .from("profiles")
+        .select("id")
+        .eq(
+          "username",
+          username
+        )
+        .maybeSingle();
 
 
-  if (existingUsername) {
+    if (usernameResult.error) {
 
-    setButtonLoading(
-      "signupButton",
-      false,
-      "Create account"
-    );
+      setButtonLoading(
+        "signupButton",
+        false,
+        "Create account"
+      );
 
-    showToast(
-      "That username is already taken."
-    );
+      console.error(
+        "Username check error:",
+        usernameResult.error
+      );
 
-    return;
+      showToast(
+        usernameResult.error.message
+      );
 
-  }
+      return;
+    }
 
 
-  /*
-    Create real Supabase Auth user.
-  */
+    if (
+      usernameResult.data
+    ) {
 
-  const {
-    data,
-    error
-  } =
-    await supabaseClient.auth.signUp({
+      setButtonLoading(
+        "signupButton",
+        false,
+        "Create account"
+      );
 
-      email: email,
+      showToast(
+        "That username is already taken."
+      );
 
-      password: password,
+      return;
+    }
 
-      options: {
 
-        data: {
+    /*
+      Create Supabase Auth user.
+    */
 
-          full_name: name,
+    const signupResult =
+      await supabaseClient.auth.signUp({
 
-          username: username
+        email: email,
+
+        password: password,
+
+        options: {
+
+          data: {
+
+            full_name: name,
+
+            username: username
+
+          }
 
         }
 
-      }
-
-    });
+      });
 
 
-  setButtonLoading(
-    "signupButton",
-    false,
-    "Create account"
-  );
-
-
-  if (error) {
-
-    showToast(
-      error.message
+    setButtonLoading(
+      "signupButton",
+      false,
+      "Create account"
     );
 
-    return;
 
-  }
+    if (signupResult.error) {
+
+      console.error(
+        "Signup error:",
+        signupResult.error
+      );
+
+      showToast(
+        signupResult.error.message
+      );
+
+      return;
+    }
 
 
-  /*
-    If email confirmation is disabled,
-    Supabase normally gives us a session.
-  */
+    const newUser =
+      signupResult.data.user;
 
-  if (data.session && data.user) {
+    const newSession =
+      signupResult.data.session;
 
-    currentUser = data.user;
 
-    await loadUserProfile();
+    if (
+      newUser &&
+      newSession
+    ) {
 
-    await enterMailApp();
+      currentUser =
+        newUser;
+
+      await loadUserProfile();
+
+      await enterMailApp();
+
+      showToast(
+        "Prime Mail account created successfully."
+      );
+
+      return;
+    }
+
+
+    /*
+      If email confirmation is enabled.
+    */
 
     showToast(
-      "Prime Mail account created successfully."
+      "Account created. Please check your email."
     );
 
-    return;
 
+    const loginEmail =
+      document.getElementById(
+        "loginEmail"
+      );
+
+
+    if (loginEmail) {
+
+      loginEmail.value =
+        email;
+    }
+
+
+    showLogin();
+
+
+  } catch (error) {
+
+    setButtonLoading(
+      "signupButton",
+      false,
+      "Create account"
+    );
+
+    console.error(
+      "Unexpected signup error:",
+      error
+    );
+
+    showToast(
+      "Account creation failed. Please try again."
+    );
   }
-
-
-  /*
-    If confirmation is enabled later,
-    user must verify email first.
-  */
-
-  showToast(
-    "Account created. Please check your email to confirm your account."
-  );
-
-  document
-    .getElementById("loginEmail")
-    .value = email;
-
-  showLogin();
 
 }
 
 
-/* =========================================
-   DEMO LOGIN
-========================================= */
+/* =========================================================
+   DEMO BUTTON
+========================================================= */
 
 function demoLogin() {
 
   showToast(
-    "Demo mode has been removed. Please create a real account."
+    "Demo mode is disabled. Please create a real Prime Mail account."
   );
 
 }
 
 
-/* =========================================
+/* =========================================================
    LOAD PROFILE
-========================================= */
+========================================================= */
 
 async function loadUserProfile() {
 
-  if (!currentUser) return;
+  if (
+    !currentUser ||
+    !supabaseClient
+  ) {
+
+    return;
+  }
 
 
-  const {
-    data,
-    error
-  } =
+  const result =
     await supabaseClient
       .from("profiles")
       .select("*")
-      .eq("id", currentUser.id)
+      .eq(
+        "id",
+        currentUser.id
+      )
       .maybeSingle();
 
 
-  if (error) {
+  if (result.error) {
 
     console.error(
-      "Profile error:",
-      error
+      "Profile loading error:",
+      result.error
     );
 
     return;
-
   }
 
 
-  currentProfile = data;
+  currentProfile =
+    result.data;
 
 
-  if (currentProfile) {
-
-    updateProfileUI();
-
-  }
+  updateProfileUI();
 
 }
 
 
-/* =========================================
+/* =========================================================
    ENTER MAIL APP
-========================================= */
+========================================================= */
 
 async function enterMailApp() {
 
-  document
-    .getElementById("loginScreen")
-    .classList
-    .add("hidden");
+  const loginScreen =
+    document.getElementById(
+      "loginScreen"
+    );
 
-  document
-    .getElementById("signupScreen")
-    .classList
-    .add("hidden");
+  const signupScreen =
+    document.getElementById(
+      "signupScreen"
+    );
 
-  document
-    .getElementById("mailApp")
-    .classList
-    .remove("hidden");
-
-
-  currentFolder = "inbox";
-
-  searchTerm = "";
+  const mailApp =
+    document.getElementById(
+      "mailApp"
+    );
 
 
-  const search =
-    document.getElementById("searchInput");
+  if (loginScreen) {
 
-  if (search) {
+    loginScreen
+      .classList
+      .add("hidden");
+  }
 
-    search.value = "";
 
+  if (signupScreen) {
+
+    signupScreen
+      .classList
+      .add("hidden");
+  }
+
+
+  if (mailApp) {
+
+    mailApp
+      .classList
+      .remove("hidden");
+  }
+
+
+  currentFolder =
+    "inbox";
+
+  searchTerm =
+    "";
+
+
+  const searchInput =
+    document.getElementById(
+      "searchInput"
+    );
+
+
+  if (searchInput) {
+
+    searchInput.value =
+      "";
   }
 
 
@@ -488,30 +718,44 @@ async function enterMailApp() {
 }
 
 
-/* =========================================
-   LOAD REAL EMAILS FROM DATABASE
-========================================= */
+/* =========================================================
+   LOAD EMAILS
+========================================================= */
 
 async function loadEmails() {
 
-  if (!currentUser) {
+  if (
+    !currentUser ||
+    !supabaseClient
+  ) {
 
     emails = [];
 
     renderEmails();
 
     return;
-
   }
 
 
-  let query =
-    supabaseClient
+  /*
+    IMPORTANT:
+    No template literal is used here.
+    This avoids the syntax problem from the
+    previous deployed app.js.
+  */
+
+  const filter =
+    "sender_id.eq." +
+    currentUser.id +
+    ",recipient_id.eq." +
+    currentUser.id;
+
+
+  const result =
+    await supabaseClient
       .from("emails")
       .select("*")
-      .or(
-        `sender_id.eq.${currentUser.id},recipient_id.eq.${currentUser.id}`
-      )
+      .or(filter)
       .order(
         "created_at",
         {
@@ -520,17 +764,11 @@ async function loadEmails() {
       );
 
 
-  const {
-    data,
-    error
-  } = await query;
-
-
-  if (error) {
+  if (result.error) {
 
     console.error(
       "Email loading error:",
-      error
+      result.error
     );
 
     showToast(
@@ -538,12 +776,11 @@ async function loadEmails() {
     );
 
     return;
-
   }
 
 
   emails =
-    (data || []).map(
+    (result.data || []).map(
       convertDatabaseEmail
     );
 
@@ -555,23 +792,31 @@ async function loadEmails() {
 }
 
 
-/* =========================================
+/* =========================================================
    CONVERT DATABASE EMAIL
-========================================= */
+========================================================= */
 
-function convertDatabaseEmail(row) {
+function convertDatabaseEmail(
+  row
+) {
 
   const isSender =
-    row.sender_id === currentUser.id;
+    row.sender_id ===
+    currentUser.id;
+
 
   let folder =
-    row.mailbox_type || "inbox";
+    row.mailbox_type ||
+    "inbox";
 
 
-  if (isSender && folder === "inbox") {
+  if (
+    isSender &&
+    folder === "inbox"
+  ) {
 
-    folder = "sent";
-
+    folder =
+      "sent";
   }
 
 
@@ -588,62 +833,79 @@ function convertDatabaseEmail(row) {
 
     email:
       isSender
-        ? (currentUser.email || "")
+        ? (
+            currentUser.email ||
+            ""
+          )
         : "Prime Mail User",
 
     subject:
-      row.subject || "(No subject)",
+      row.subject ||
+      "(No subject)",
 
     preview:
-      row.body || "",
+      row.body ||
+      "",
 
     body:
-      row.body || "",
+      row.body ||
+      "",
 
     date:
-      formatDate(row.created_at),
+      formatDate(
+        row.created_at
+      ),
 
     unread:
-      !row.is_read && !isSender,
+      !row.is_read &&
+      !isSender,
 
     starred:
-      Boolean(row.is_starred),
+      Boolean(
+        row.is_starred
+      ),
 
     attachment:
       false
-
   };
 
 }
 
 
-/* =========================================
-   FOLDER DISPLAY
-========================================= */
+/* =========================================================
+   OPEN FOLDER
+========================================================= */
 
-function openFolder(folder) {
+function openFolder(
+  folder
+) {
 
-  currentFolder = folder;
+  currentFolder =
+    folder;
 
-  searchTerm = "";
+  searchTerm =
+    "";
 
 
-  const search =
+  const searchInput =
     document.getElementById(
       "searchInput"
     );
 
-  if (search) {
 
-    search.value = "";
+  if (searchInput) {
 
+    searchInput.value =
+      "";
   }
 
 
   document
-    .querySelectorAll(".nav-item")
+    .querySelectorAll(
+      ".nav-item"
+    )
     .forEach(
-      button => {
+      function (button) {
 
         button
           .classList
@@ -653,19 +915,25 @@ function openFolder(folder) {
     );
 
 
-  const active =
-    document.querySelector(
-      `.nav-item[data-folder="${folder}"]`
+  document
+    .querySelectorAll(
+      ".nav-item"
+    )
+    .forEach(
+      function (button) {
+
+        if (
+          button.dataset.folder ===
+          folder
+        ) {
+
+          button
+            .classList
+            .add("active");
+        }
+
+      }
     );
-
-
-  if (active) {
-
-    active
-      .classList
-      .add("active");
-
-  }
 
 
   updateFolderHeader();
@@ -676,6 +944,10 @@ function openFolder(folder) {
 
 }
 
+
+/* =========================================================
+   FOLDER HEADER
+========================================================= */
 
 function updateFolderHeader() {
 
@@ -709,6 +981,11 @@ function updateFolderHeader() {
     trash: [
       "Trash",
       "Deleted messages"
+    ],
+
+    archive: [
+      "Archive",
+      "Archived messages"
     ]
 
   };
@@ -722,23 +999,36 @@ function updateFolderHeader() {
     ];
 
 
-  document
-    .getElementById("folderTitle")
-    .textContent =
+  const title =
+    document.getElementById(
+      "folderTitle"
+    );
+
+  const description =
+    document.getElementById(
+      "folderDescription"
+    );
+
+
+  if (title) {
+
+    title.textContent =
       data[0];
+  }
 
 
-  document
-    .getElementById("folderDescription")
-    .textContent =
+  if (description) {
+
+    description.textContent =
       data[1];
+  }
 
 }
 
 
-/* =========================================
-   RENDER REAL EMAILS
-========================================= */
+/* =========================================================
+   RENDER EMAILS
+========================================================= */
 
 function renderEmails() {
 
@@ -753,15 +1043,22 @@ function renderEmails() {
     );
 
 
-  if (!list || !empty) return;
+  if (
+    !list ||
+    !empty
+  ) {
+
+    return;
+  }
 
 
-  list.innerHTML = "";
+  list.innerHTML =
+    "";
 
 
   let filtered =
     emails.filter(
-      email => {
+      function (email) {
 
         if (
           currentFolder ===
@@ -769,7 +1066,6 @@ function renderEmails() {
         ) {
 
           return email.starred;
-
         }
 
 
@@ -786,7 +1082,7 @@ function renderEmails() {
 
     filtered =
       filtered.filter(
-        email => {
+        function (email) {
 
           const content =
             (
@@ -797,28 +1093,28 @@ function renderEmails() {
               email.subject +
               " " +
               email.preview
-            )
-              .toLowerCase();
+            ).toLowerCase();
 
 
-          return content.includes(
+          return content.indexOf(
             searchTerm.toLowerCase()
-          );
+          ) !== -1;
 
         }
       );
-
   }
 
 
-  if (filtered.length === 0) {
+  if (
+    filtered.length ===
+    0
+  ) {
 
     empty
       .classList
       .remove("hidden");
 
     return;
-
   }
 
 
@@ -828,7 +1124,7 @@ function renderEmails() {
 
 
   filtered.forEach(
-    email => {
+    function (email) {
 
       const row =
         document.createElement(
@@ -849,60 +1145,163 @@ function renderEmails() {
         email.id;
 
 
-      row.innerHTML = `
+      const checkbox =
+        document.createElement(
+          "input"
+        );
 
-        <input
-          class="email-checkbox"
-          type="checkbox"
-          onclick="event.stopPropagation()"
-        >
+      checkbox.type =
+        "checkbox";
 
-        <button
-          class="star-button ${
-            email.starred
-              ? "starred"
-              : ""
-          }"
-          onclick="toggleStar(event, '${escapeAttribute(email.id)}')"
-        >
-          ${
-            email.starred
-              ? "★"
-              : "☆"
-          }
-        </button>
+      checkbox.className =
+        "email-checkbox";
 
-        <div
-          class="email-sender"
-          title="${escapeAttribute(email.email)}"
-        >
-          ${escapeHTML(email.sender)}
-        </div>
 
-        <div class="email-main">
+      checkbox.addEventListener(
+        "click",
+        function (event) {
 
-          <span class="email-subject">
-            ${escapeHTML(email.subject)}
-          </span>
+          event.stopPropagation();
 
-          <span> — </span>
+        }
+      );
 
-          <span class="email-preview">
-            ${escapeHTML(email.preview)}
-          </span>
 
-        </div>
+      const star =
+        document.createElement(
+          "button"
+        );
 
-        <div class="email-date">
-          ${escapeHTML(email.date)}
-        </div>
+      star.className =
+        "star-button" +
+        (
+          email.starred
+            ? " starred"
+            : ""
+        );
 
-      `;
+      star.textContent =
+        email.starred
+          ? "★"
+          : "☆";
+
+
+      star.addEventListener(
+        "click",
+        function (event) {
+
+          toggleStar(
+            event,
+            email.id
+          );
+
+        }
+      );
+
+
+      const sender =
+        document.createElement(
+          "div"
+        );
+
+      sender.className =
+        "email-sender";
+
+      sender.title =
+        email.email;
+
+      sender.textContent =
+        email.sender;
+
+
+      const main =
+        document.createElement(
+          "div"
+        );
+
+      main.className =
+        "email-main";
+
+
+      const subject =
+        document.createElement(
+          "span"
+        );
+
+      subject.className =
+        "email-subject";
+
+      subject.textContent =
+        email.subject;
+
+
+      const separator =
+        document.createTextNode(
+          " — "
+        );
+
+
+      const preview =
+        document.createElement(
+          "span"
+        );
+
+      preview.className =
+        "email-preview";
+
+      preview.textContent =
+        email.preview;
+
+
+      main.appendChild(
+        subject
+      );
+
+      main.appendChild(
+        separator
+      );
+
+      main.appendChild(
+        preview
+      );
+
+
+      const date =
+        document.createElement(
+          "div"
+        );
+
+      date.className =
+        "email-date";
+
+      date.textContent =
+        email.date;
+
+
+      row.appendChild(
+        checkbox
+      );
+
+      row.appendChild(
+        star
+      );
+
+      row.appendChild(
+        sender
+      );
+
+      row.appendChild(
+        main
+      );
+
+      row.appendChild(
+        date
+      );
 
 
       row.addEventListener(
         "click",
-        event => {
+        function (event) {
 
           if (
             event.target.closest(
@@ -914,17 +1313,20 @@ function renderEmails() {
           ) {
 
             return;
-
           }
 
 
-          openEmail(email.id);
+          openEmail(
+            email.id
+          );
 
         }
       );
 
 
-      list.appendChild(row);
+      list.appendChild(
+        row
+      );
 
     }
   );
@@ -932,19 +1334,22 @@ function renderEmails() {
 }
 
 
-/* =========================================
+/* =========================================================
    SEARCH
-========================================= */
+========================================================= */
 
 function searchMail() {
 
+  const input =
+    document.getElementById(
+      "searchInput"
+    );
+
+
   searchTerm =
-    document
-      .getElementById(
-        "searchInput"
-      )
-      .value
-      .trim();
+    input
+      ? input.value.trim()
+      : "";
 
 
   renderEmails();
@@ -952,20 +1357,27 @@ function searchMail() {
 }
 
 
-/* =========================================
+/* =========================================================
    OPEN EMAIL
-========================================= */
+========================================================= */
 
-async function openEmail(id) {
+async function openEmail(
+  id
+) {
 
   const email =
     emails.find(
-      item =>
-        item.id === id
+      function (item) {
+
+        return item.id === id;
+
+      }
     );
 
 
-  if (!email) return;
+  if (!email) {
+    return;
+  }
 
 
   if (
@@ -973,22 +1385,40 @@ async function openEmail(id) {
     currentUser
   ) {
 
-    await supabaseClient
-      .from("emails")
-      .update({
-        is_read: true
-      })
-      .eq("id", id)
-      .eq(
-        "recipient_id",
-        currentUser.id
+    const result =
+      await supabaseClient
+        .from("emails")
+        .update({
+          is_read: true
+        })
+        .eq(
+          "id",
+          id
+        )
+        .eq(
+          "recipient_id",
+          currentUser.id
+        );
+
+
+    if (result.error) {
+
+      console.error(
+        result.error
       );
+    }
 
 
-    email.unread = false;
-
+    email.unread =
+      false;
   }
 
+
+  /*
+    Current HTML does not contain a
+    full message viewer, so show the
+    subject for now.
+  */
 
   showToast(
     email.subject
@@ -1000,51 +1430,60 @@ async function openEmail(id) {
 }
 
 
-/* =========================================
+/* =========================================================
    STAR
-========================================= */
+========================================================= */
 
 async function toggleStar(
   event,
   id
 ) {
 
-  event.stopPropagation();
+  if (event) {
+
+    event.stopPropagation();
+  }
 
 
   const email =
     emails.find(
-      item =>
-        item.id === id
+      function (item) {
+
+        return item.id === id;
+
+      }
     );
 
 
-  if (!email) return;
+  if (!email) {
+    return;
+  }
 
 
   const newValue =
     !email.starred;
 
 
-  const {
-    error
-  } =
+  const result =
     await supabaseClient
       .from("emails")
       .update({
-        is_starred: newValue
+        is_starred:
+          newValue
       })
-      .eq("id", id);
+      .eq(
+        "id",
+        id
+      );
 
 
-  if (error) {
+  if (result.error) {
 
     showToast(
-      error.message
+      result.error.message
     );
 
     return;
-
   }
 
 
@@ -1057,9 +1496,9 @@ async function toggleStar(
 }
 
 
-/* =========================================
+/* =========================================================
    SELECT ALL
-========================================= */
+========================================================= */
 
 function toggleSelectAll() {
 
@@ -1069,7 +1508,9 @@ function toggleSelectAll() {
     );
 
 
-  if (!master) return;
+  if (!master) {
+    return;
+  }
 
 
   document
@@ -1077,7 +1518,7 @@ function toggleSelectAll() {
       ".email-checkbox"
     )
     .forEach(
-      box => {
+      function (box) {
 
         box.checked =
           master.checked;
@@ -1088,9 +1529,9 @@ function toggleSelectAll() {
 }
 
 
-/* =========================================
+/* =========================================================
    DELETE SELECTED
-========================================= */
+========================================================= */
 
 async function deleteSelected() {
 
@@ -1103,7 +1544,8 @@ async function deleteSelected() {
 
 
   if (
-    selected.length === 0
+    selected.length ===
+    0
   ) {
 
     showToast(
@@ -1111,30 +1553,41 @@ async function deleteSelected() {
     );
 
     return;
-
   }
 
 
-  const ids =
-    selected.map(
-      box =>
-        box
-          .closest(".email-row")
-          .dataset.id
-    );
-
-
   for (
-    const id of ids
+    let i = 0;
+    i < selected.length;
+    i++
   ) {
+
+    const row =
+      selected[i]
+        .closest(
+          ".email-row"
+        );
+
+
+    if (!row) {
+      continue;
+    }
+
+
+    const id =
+      row.dataset.id;
+
 
     await supabaseClient
       .from("emails")
       .update({
-        mailbox_type: "trash"
+        mailbox_type:
+          "trash"
       })
-      .eq("id", id);
-
+      .eq(
+        "id",
+        id
+      );
   }
 
 
@@ -1143,15 +1596,16 @@ async function deleteSelected() {
       "selectAll"
     );
 
+
   if (master) {
 
     master.checked =
       false;
-
   }
 
 
   await loadEmails();
+
 
   showToast(
     "Message(s) moved to Trash."
@@ -1160,9 +1614,9 @@ async function deleteSelected() {
 }
 
 
-/* =========================================
+/* =========================================================
    ARCHIVE
-========================================= */
+========================================================= */
 
 async function archiveSelected() {
 
@@ -1175,7 +1629,8 @@ async function archiveSelected() {
 
 
   if (
-    selected.length === 0
+    selected.length ===
+    0
   ) {
 
     showToast(
@@ -1183,34 +1638,46 @@ async function archiveSelected() {
     );
 
     return;
-
   }
 
 
-  const ids =
-    selected.map(
-      box =>
-        box
-          .closest(".email-row")
-          .dataset.id
-    );
-
-
   for (
-    const id of ids
+    let i = 0;
+    i < selected.length;
+    i++
   ) {
+
+    const row =
+      selected[i]
+        .closest(
+          ".email-row"
+        );
+
+
+    if (!row) {
+      continue;
+    }
+
+
+    const id =
+      row.dataset.id;
+
 
     await supabaseClient
       .from("emails")
       .update({
-        mailbox_type: "archive"
+        mailbox_type:
+          "archive"
       })
-      .eq("id", id);
-
+      .eq(
+        "id",
+        id
+      );
   }
 
 
   await loadEmails();
+
 
   showToast(
     "Messages archived."
@@ -1219,9 +1686,9 @@ async function archiveSelected() {
 }
 
 
-/* =========================================
+/* =========================================================
    REFRESH
-========================================= */
+========================================================= */
 
 async function refreshMail() {
 
@@ -1240,9 +1707,9 @@ async function refreshMail() {
 }
 
 
-/* =========================================
+/* =========================================================
    COMPOSE
-========================================= */
+========================================================= */
 
 function openCompose() {
 
@@ -1250,6 +1717,11 @@ function openCompose() {
     document.getElementById(
       "composeWindow"
     );
+
+
+  if (!compose) {
+    return;
+  }
 
 
   compose
@@ -1265,44 +1737,62 @@ function openCompose() {
     "";
 
 
-  document
-    .getElementById(
+  const to =
+    document.getElementById(
       "composeTo"
-    )
-    .focus();
+    );
+
+
+  if (to) {
+    to.focus();
+  }
 
 }
 
 
 function closeCompose() {
 
-  document
-    .getElementById(
+  const compose =
+    document.getElementById(
       "composeWindow"
-    )
-    .classList
-    .add("hidden");
+    );
 
 
-  document
-    .getElementById(
+  if (compose) {
+
+    compose
+      .classList
+      .add("hidden");
+  }
+
+
+  const to =
+    document.getElementById(
       "composeTo"
-    )
-    .value = "";
+    );
 
-
-  document
-    .getElementById(
+  const subject =
+    document.getElementById(
       "composeSubject"
-    )
-    .value = "";
+    );
 
-
-  document
-    .getElementById(
+  const message =
+    document.getElementById(
       "composeMessage"
-    )
-    .value = "";
+    );
+
+
+  if (to) {
+    to.value = "";
+  }
+
+  if (subject) {
+    subject.value = "";
+  }
+
+  if (message) {
+    message.value = "";
+  }
 
 }
 
@@ -1313,6 +1803,11 @@ function minimizeCompose() {
     document.getElementById(
       "composeWindow"
     );
+
+
+  if (!compose) {
+    return;
+  }
 
 
   composeMinimized =
@@ -1330,15 +1825,14 @@ function minimizeCompose() {
 
     compose.style.height =
       "";
-
   }
 
 }
 
 
-/* =========================================
-   SEND
-========================================= */
+/* =========================================================
+   SEND EMAIL
+========================================================= */
 
 async function sendEmail() {
 
@@ -1349,35 +1843,39 @@ async function sendEmail() {
     );
 
     return;
-
   }
 
 
-  const to =
-    document
-      .getElementById(
-        "composeTo"
-      )
-      .value
-      .trim();
+  const toInput =
+    document.getElementById(
+      "composeTo"
+    );
 
+  const subjectInput =
+    document.getElementById(
+      "composeSubject"
+    );
+
+  const messageInput =
+    document.getElementById(
+      "composeMessage"
+    );
+
+
+  const to =
+    toInput
+      ? toInput.value.trim()
+      : "";
 
   const subject =
-    document
-      .getElementById(
-        "composeSubject"
-      )
-      .value
-      .trim();
-
+    subjectInput
+      ? subjectInput.value.trim()
+      : "";
 
   const message =
-    document
-      .getElementById(
-        "composeMessage"
-      )
-      .value
-      .trim();
+    messageInput
+      ? messageInput.value.trim()
+      : "";
 
 
   if (!to) {
@@ -1387,7 +1885,6 @@ async function sendEmail() {
     );
 
     return;
-
   }
 
 
@@ -1398,7 +1895,6 @@ async function sendEmail() {
     );
 
     return;
-
   }
 
 
@@ -1409,54 +1905,81 @@ async function sendEmail() {
     );
 
     return;
-
   }
 
 
   /*
-    IMPORTANT:
-    At this stage the database can store
-    emails between known Prime Mail users,
-    but we have not yet built the public
-    email-address delivery system.
+    IMPORTANT
+
+    Public Gmail/Yahoo/etc. sending is not
+    connected yet.
+
+    The current database has sender_id and
+    recipient_id, so a proper Prime Mail
+    internal messaging system can be connected
+    once recipient lookup is added.
   */
 
   showToast(
-    "Real external email sending is not connected yet."
+    "Email sending will be connected next."
   );
 
 }
 
 
-/* =========================================
+/* =========================================================
    PROFILE UI
-========================================= */
+========================================================= */
 
 function updateProfileUI() {
 
-  if (!currentUser) return;
+  if (!currentUser) {
+    return;
+  }
 
 
-  const fullName =
-    (
-      currentProfile &&
-      currentProfile.full_name
-    ) ||
-    currentUser
-      .user_metadata
-      ?.full_name ||
+  let fullName =
     "Prime Mail User";
 
 
-  const username =
-    (
-      currentProfile &&
-      currentProfile.username
-    ) ||
-    currentUser
-      .user_metadata
-      ?.username ||
+  let username =
     "user";
+
+
+  if (
+    currentProfile &&
+    currentProfile.full_name
+  ) {
+
+    fullName =
+      currentProfile.full_name;
+
+  } else if (
+    currentUser.user_metadata &&
+    currentUser.user_metadata.full_name
+  ) {
+
+    fullName =
+      currentUser.user_metadata.full_name;
+  }
+
+
+  if (
+    currentProfile &&
+    currentProfile.username
+  ) {
+
+    username =
+      currentProfile.username;
+
+  } else if (
+    currentUser.user_metadata &&
+    currentUser.user_metadata.username
+  ) {
+
+    username =
+      currentUser.user_metadata.username;
+  }
 
 
   const email =
@@ -1506,7 +2029,6 @@ function updateProfileUI() {
 
     profileName.textContent =
       fullName;
-
   }
 
 
@@ -1514,7 +2036,6 @@ function updateProfileUI() {
 
     profileFullName.textContent =
       fullName;
-
   }
 
 
@@ -1522,7 +2043,6 @@ function updateProfileUI() {
 
     profileEmail.textContent =
       email;
-
   }
 
 
@@ -1530,7 +2050,6 @@ function updateProfileUI() {
 
     profileUsername.textContent =
       "@" + username;
-
   }
 
 
@@ -1538,7 +2057,6 @@ function updateProfileUI() {
 
     avatar.textContent =
       initial;
-
   }
 
 
@@ -1546,44 +2064,48 @@ function updateProfileUI() {
 
     largeAvatar.textContent =
       initial;
-
   }
 
 }
 
 
-/* =========================================
+/* =========================================================
    LOGOUT
-========================================= */
+========================================================= */
 
 async function logout() {
 
-  const {
-    error
-  } =
-    await supabaseClient
-      .auth
-      .signOut();
-
-
-  if (error) {
-
-    showToast(
-      error.message
-    );
-
+  if (!supabaseClient) {
     return;
-
   }
 
 
-  currentUser = null;
+  const result =
+    await supabaseClient.auth.signOut();
 
-  currentProfile = null;
 
-  emails = [];
+  if (result.error) {
+
+    showToast(
+      result.error.message
+    );
+
+    return;
+  }
+
+
+  currentUser =
+    null;
+
+  currentProfile =
+    null;
+
+  emails =
+    [];
+
 
   showLogin();
+
 
   showToast(
     "You have been signed out."
@@ -1592,71 +2114,128 @@ async function logout() {
 }
 
 
-/* =========================================
-   LOGIN / SIGNUP SCREENS
-========================================= */
+/* =========================================================
+   SHOW SIGNUP
+========================================================= */
 
 function showSignup() {
 
-  document
-    .getElementById(
+  const loginScreen =
+    document.getElementById(
       "loginScreen"
-    )
-    .classList
-    .add("hidden");
+    );
 
-
-  document
-    .getElementById(
+  const signupScreen =
+    document.getElementById(
       "signupScreen"
-    )
-    .classList
-    .remove("hidden");
+    );
+
+  const mailApp =
+    document.getElementById(
+      "mailApp"
+    );
+
+
+  if (mailApp) {
+
+    mailApp
+      .classList
+      .add("hidden");
+  }
+
+
+  if (loginScreen) {
+
+    loginScreen
+      .classList
+      .add("hidden");
+  }
+
+
+  if (signupScreen) {
+
+    signupScreen
+      .classList
+      .remove("hidden");
+  }
 
 }
 
+
+/* =========================================================
+   SHOW LOGIN
+========================================================= */
 
 function showLogin() {
 
-  document
-    .getElementById(
-      "signupScreen"
-    )
-    .classList
-    .add("hidden");
-
-
-  document
-    .getElementById(
-      "mailApp"
-    )
-    .classList
-    .add("hidden");
-
-
-  document
-    .getElementById(
+  const loginScreen =
+    document.getElementById(
       "loginScreen"
-    )
-    .classList
-    .remove("hidden");
+    );
+
+  const signupScreen =
+    document.getElementById(
+      "signupScreen"
+    );
+
+  const mailApp =
+    document.getElementById(
+      "mailApp"
+    );
+
+
+  if (signupScreen) {
+
+    signupScreen
+      .classList
+      .add("hidden");
+  }
+
+
+  if (mailApp) {
+
+    mailApp
+      .classList
+      .add("hidden");
+  }
+
+
+  if (loginScreen) {
+
+    loginScreen
+      .classList
+      .remove("hidden");
+  }
 
 }
 
 
-/* =========================================
-   PASSWORD RESET
-========================================= */
+/* =========================================================
+   FORGOT PASSWORD
+========================================================= */
 
 async function showForgotPassword() {
 
+  if (!supabaseClient) {
+
+    showToast(
+      "Supabase is not connected."
+    );
+
+    return;
+  }
+
+
+  const input =
+    document.getElementById(
+      "loginEmail"
+    );
+
+
   const email =
-    document
-      .getElementById(
-        "loginEmail"
-      )
-      .value
-      .trim();
+    input
+      ? input.value.trim()
+      : "";
 
 
   if (!email) {
@@ -1666,7 +2245,6 @@ async function showForgotPassword() {
     );
 
     return;
-
   }
 
 
@@ -1675,28 +2253,23 @@ async function showForgotPassword() {
     window.location.pathname;
 
 
-  const {
-    error
-  } =
-    await supabaseClient
-      .auth
-      .resetPasswordForEmail(
-        email,
-        {
-          redirectTo:
-            redirectUrl
-        }
-      );
+  const result =
+    await supabaseClient.auth.resetPasswordForEmail(
+      email,
+      {
+        redirectTo:
+          redirectUrl
+      }
+    );
 
 
-  if (error) {
+  if (result.error) {
 
     showToast(
-      error.message
+      result.error.message
     );
 
     return;
-
   }
 
 
@@ -1707,23 +2280,27 @@ async function showForgotPassword() {
 }
 
 
-/* =========================================
+/* =========================================================
    THEME
-========================================= */
+========================================================= */
 
 function toggleTheme() {
 
   document
     .body
     .classList
-    .toggle("dark");
+    .toggle(
+      "dark"
+    );
 
 
   const dark =
     document
       .body
       .classList
-      .contains("dark");
+      .contains(
+        "dark"
+      );
 
 
   localStorage.setItem(
@@ -1745,38 +2322,50 @@ function loadTheme() {
 
 
   if (
-    theme === "dark"
+    theme ===
+    "dark"
   ) {
 
     document
       .body
       .classList
-      .add("dark");
-
+      .add(
+        "dark"
+      );
   }
 
 }
 
 
-/* =========================================
+/* =========================================================
    PROFILE MENU
-========================================= */
+========================================================= */
 
 function toggleProfileMenu() {
 
-  document
-    .getElementById(
+  const menu =
+    document.getElementById(
       "profileMenu"
-    )
+    );
+
+
+  if (!menu) {
+    return;
+  }
+
+
+  menu
     .classList
-    .toggle("hidden");
+    .toggle(
+      "hidden"
+    );
 
 }
 
 
 document.addEventListener(
   "click",
-  event => {
+  function (event) {
 
     const menu =
       document.getElementById(
@@ -1805,17 +2394,18 @@ document.addEventListener(
 
       menu
         .classList
-        .add("hidden");
-
+        .add(
+          "hidden"
+        );
     }
 
   }
 );
 
 
-/* =========================================
-   SETTINGS / ACCOUNT
-========================================= */
+/* =========================================================
+   SETTINGS
+========================================================= */
 
 function showSettings() {
 
@@ -1824,24 +2414,43 @@ function showSettings() {
   );
 
 
-  document
-    .getElementById(
+  const menu =
+    document.getElementById(
       "profileMenu"
-    )
-    .classList
-    .add("hidden");
+    );
+
+
+  if (menu) {
+
+    menu
+      .classList
+      .add(
+        "hidden"
+      );
+  }
 
 }
 
 
 function showAccount() {
 
-  showToast(
+  let message =
+    "Account loaded.";
+
+
+  if (
     currentProfile &&
     currentProfile.username
-      ? "Username: @" +
-        currentProfile.username
-      : "Account loaded."
+  ) {
+
+    message =
+      "Username: @" +
+      currentProfile.username;
+  }
+
+
+  showToast(
+    message
   );
 
 }
@@ -1850,7 +2459,7 @@ function showAccount() {
 function showNotifications() {
 
   showToast(
-    "Notifications will be connected next."
+    "No new notifications."
   );
 
 }
@@ -1865,16 +2474,24 @@ function addLabel() {
 }
 
 
-/* =========================================
+/* =========================================================
    MOBILE SIDEBAR
-========================================= */
+========================================================= */
 
 function toggleSidebar() {
 
-  document
-    .getElementById(
+  const sidebar =
+    document.getElementById(
       "sidebar"
-    )
+    );
+
+
+  if (!sidebar) {
+    return;
+  }
+
+
+  sidebar
     .classList
     .toggle(
       "mobile-open"
@@ -1885,10 +2502,18 @@ function toggleSidebar() {
 
 function closeMobileSidebar() {
 
-  document
-    .getElementById(
+  const sidebar =
+    document.getElementById(
       "sidebar"
-    )
+    );
+
+
+  if (!sidebar) {
+    return;
+  }
+
+
+  sidebar
     .classList
     .remove(
       "mobile-open"
@@ -1897,9 +2522,9 @@ function closeMobileSidebar() {
 }
 
 
-/* =========================================
+/* =========================================================
    PAGINATION
-========================================= */
+========================================================= */
 
 function previousPage() {
 
@@ -1919,26 +2544,36 @@ function nextPage() {
 }
 
 
-/* =========================================
+/* =========================================================
    COUNTS
-========================================= */
+========================================================= */
 
 function updateCounts() {
 
   const inboxCount =
     emails.filter(
-      email =>
-        email.folder ===
+      function (email) {
+
+        return (
+          email.folder ===
           "inbox" &&
-        email.unread
+          email.unread
+        );
+
+      }
     ).length;
 
 
   const draftCount =
     emails.filter(
-      email =>
-        email.folder ===
-        "drafts"
+      function (email) {
+
+        return (
+          email.folder ===
+          "drafts"
+        );
+
+      }
     ).length;
 
 
@@ -1946,7 +2581,6 @@ function updateCounts() {
     document.getElementById(
       "inboxCount"
     );
-
 
   const draftElement =
     document.getElementById(
@@ -1958,7 +2592,6 @@ function updateCounts() {
 
     inboxElement.textContent =
       inboxCount;
-
   }
 
 
@@ -1966,22 +2599,21 @@ function updateCounts() {
 
     draftElement.textContent =
       draftCount;
-
   }
 
 }
 
 
-/* =========================================
+/* =========================================================
    DATE
-========================================= */
+========================================================= */
 
-function formatDate(value) {
+function formatDate(
+  value
+) {
 
   if (!value) {
-
     return "";
-
   }
 
 
@@ -1996,7 +2628,6 @@ function formatDate(value) {
   ) {
 
     return "";
-
   }
 
 
@@ -2013,9 +2644,9 @@ function formatDate(value) {
 }
 
 
-/* =========================================
+/* =========================================================
    BUTTON LOADING
-========================================= */
+========================================================= */
 
 function setButtonLoading(
   id,
@@ -2029,7 +2660,9 @@ function setButtonLoading(
     );
 
 
-  if (!button) return;
+  if (!button) {
+    return;
+  }
 
 
   button.disabled =
@@ -2042,14 +2675,13 @@ function setButtonLoading(
 }
 
 
-/* =========================================
+/* =========================================================
    TOAST
-========================================= */
+========================================================= */
 
-let toastTimer;
-
-
-function showToast(message) {
+function showToast(
+  message
+) {
 
   const toast =
     document.getElementById(
@@ -2062,12 +2694,16 @@ function showToast(message) {
     );
 
 
-  if (!toast || !messageElement) {
+  if (
+    !toast ||
+    !messageElement
+  ) {
 
-    alert(message);
+    alert(
+      message
+    );
 
     return;
-
   }
 
 
@@ -2077,7 +2713,9 @@ function showToast(message) {
 
   toast
     .classList
-    .remove("hidden");
+    .remove(
+      "hidden"
+    );
 
 
   clearTimeout(
@@ -2087,11 +2725,13 @@ function showToast(message) {
 
   toastTimer =
     setTimeout(
-      () => {
+      function () {
 
         toast
           .classList
-          .add("hidden");
+          .add(
+            "hidden"
+          );
 
       },
       3000
@@ -2100,47 +2740,85 @@ function showToast(message) {
 }
 
 
-/* =========================================
-   SECURITY
-========================================= */
+/* =========================================================
+   KEYBOARD SHORTCUTS
+========================================================= */
 
-function escapeHTML(value) {
+document.addEventListener(
+  "keydown",
+  function (event) {
 
-  return String(value)
+    /*
+      Press "/" to focus search.
+    */
 
-    .replaceAll(
-      "&",
-      "&amp;"
-    )
+    if (
+      event.key === "/" &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
+    ) {
 
-    .replaceAll(
-      "<",
-      "&lt;"
-    )
-
-    .replaceAll(
-      ">",
-      "&gt;"
-    )
-
-    .replaceAll(
-      '"',
-      "&quot;"
-    )
-
-    .replaceAll(
-      "'",
-      "&#039;"
-    );
-
-}
+      const active =
+        document.activeElement;
 
 
-function escapeAttribute(value) {
+      const tag =
+        active
+          ? active.tagName
+          : "";
 
-  return escapeHTML(
-    value
-  );
 
-}
-```
+      if (
+        tag !== "INPUT" &&
+        tag !== "TEXTAREA"
+      ) {
+
+        const search =
+          document.getElementById(
+            "searchInput"
+          );
+
+
+        if (search) {
+
+          event.preventDefault();
+
+          search.focus();
+        }
+      }
+    }
+
+
+    /*
+      Escape closes compose.
+    */
+
+    if (
+      event.key === "Escape"
+    ) {
+
+      const compose =
+        document.getElementById(
+          "composeWindow"
+        );
+
+
+      if (
+        compose &&
+        !compose.classList.contains(
+          "hidden"
+        )
+      ) {
+
+        closeCompose();
+      }
+    }
+
+  }
+);
+
+
+/* =========================================================
+   END
+========================================================= */
