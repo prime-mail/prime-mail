@@ -1,12 +1,12 @@
+```javascript
 /* =========================================
    PRIME MAIL
-   Frontend Application
-   Supabase Authentication
+   Real Supabase Authentication + Mailbox
 ========================================= */
 
 
 /* =========================================
-   SUPABASE CONFIGURATION
+   SUPABASE
 ========================================= */
 
 const SUPABASE_URL =
@@ -15,132 +15,28 @@ const SUPABASE_URL =
 const SUPABASE_PUBLISHABLE_KEY =
   "sb_publishable_BrRmSLwqYP0_tZLIcksRGQ_Kd6S6CtI";
 
-
-const { createClient } = window.supabase;
-
 const supabaseClient =
-  createClient(
+  window.supabase.createClient(
     SUPABASE_URL,
     SUPABASE_PUBLISHABLE_KEY
   );
 
 
 /* =========================================
-   APP USER
+   APP STATE
 ========================================= */
 
 let currentUser = null;
 
-
-/* =========================================
-   DEMO EMAIL DATA
-========================================= */
-
-const emails = [
-
-  {
-    id: 1,
-    folder: "inbox",
-    sender: "Sarah Johnson",
-    email: "sarah@example.com",
-    subject: "Welcome to Prime Mail",
-    preview: "Thanks for joining us. Here are some things you can do...",
-    date: "10:42 AM",
-    unread: true,
-    starred: true,
-    attachment: false
-  },
-
-  {
-    id: 2,
-    folder: "inbox",
-    sender: "Prime Security",
-    email: "security@prime.example",
-    subject: "Your account security",
-    preview: "Your account has been successfully created...",
-    date: "9:15 AM",
-    unread: true,
-    starred: false,
-    attachment: false
-  },
-
-  {
-    id: 3,
-    folder: "inbox",
-    sender: "Michael Brown",
-    email: "michael@example.com",
-    subject: "Project update",
-    preview: "I have attached the latest version of the project...",
-    date: "Yesterday",
-    unread: true,
-    starred: false,
-    attachment: true
-  },
-
-  {
-    id: 4,
-    folder: "inbox",
-    sender: "Emma Wilson",
-    email: "emma@example.com",
-    subject: "Meeting tomorrow",
-    preview: "Are we still meeting tomorrow at 10 AM?",
-    date: "Yesterday",
-    unread: false,
-    starred: true,
-    attachment: false
-  },
-
-  {
-    id: 5,
-    folder: "sent",
-    sender: "You",
-    email: "alex@example.com",
-    subject: "Re: Project update",
-    preview: "Thanks Michael. I will review the files today.",
-    date: "Yesterday",
-    unread: false,
-    starred: false,
-    attachment: false
-  },
-
-  {
-    id: 6,
-    folder: "sent",
-    sender: "You",
-    email: "sarah@example.com",
-    subject: "Thank you",
-    preview: "Thank you for the information.",
-    date: "Sep 26",
-    unread: false,
-    starred: false,
-    attachment: false
-  },
-
-  {
-    id: 7,
-    folder: "spam",
-    sender: "Unknown Sender",
-    email: "unknown@example.com",
-    subject: "You won a prize!",
-    preview: "Congratulations! You have been selected...",
-    date: "Sep 25",
-    unread: true,
-    starred: false,
-    attachment: false
-  }
-
-];
-
-
-/* =========================================
-   APP STATE
-========================================= */
+let currentProfile = null;
 
 let currentFolder = "inbox";
 
 let searchTerm = "";
 
 let composeMinimized = false;
+
+let emails = [];
 
 
 /* =========================================
@@ -153,88 +49,69 @@ document.addEventListener(
 
     loadTheme();
 
-    updateCounts();
-
     await checkExistingSession();
+
+    supabaseClient.auth.onAuthStateChange(
+      async (event, session) => {
+
+        if (event === "SIGNED_OUT") {
+
+          currentUser = null;
+          currentProfile = null;
+          emails = [];
+
+          showLogin();
+
+          return;
+        }
+
+        if (session && session.user) {
+
+          currentUser = session.user;
+
+          await loadUserProfile();
+
+          await enterMailApp();
+
+        }
+
+      }
+    );
 
   }
 );
 
 
 /* =========================================
-   CHECK EXISTING SUPABASE SESSION
+   SESSION
 ========================================= */
 
 async function checkExistingSession() {
 
-  try {
+  const {
+    data,
+    error
+  } = await supabaseClient.auth.getSession();
 
-    const {
-      data,
-      error
-    } =
-      await supabaseClient.auth.getSession();
+  if (error) {
 
+    console.error(error);
 
-    if (error) {
+    return;
 
-      console.error(
-        "Session error:",
-        error
-      );
+  }
 
-      return;
+  if (data.session && data.session.user) {
 
-    }
+    currentUser = data.session.user;
 
+    await loadUserProfile();
 
-    if (
-      data &&
-      data.session &&
-      data.session.user
-    ) {
-
-      currentUser =
-        data.session.user;
-
-      enterMailApp(
-        currentUser,
-        false
-      );
-
-    }
-
-  } catch (error) {
-
-    console.error(
-      "Session check failed:",
-      error
-    );
+    await enterMailApp();
 
   }
 
 }
-
-
-/* =========================================
-   SUPABASE AUTH STATE LISTENER
-========================================= */
-
-supabaseClient.auth.onAuthStateChange(
-  (event, session) => {
-
-    if (
-      event === "SIGNED_OUT"
-    ) {
-
-      currentUser = null;
-
-      showLoginScreen();
-
-    }
-
-  }
-);
 
 
 /* =========================================
@@ -252,9 +129,7 @@ async function login() {
   const password =
     document
       .getElementById("loginPassword")
-      .value
-      .trim();
-
+      .value;
 
   if (!email || !password) {
 
@@ -266,302 +141,48 @@ async function login() {
 
   }
 
-
-  showToast(
+  setButtonLoading(
+    "loginButton",
+    true,
     "Signing in..."
   );
 
+  const {
+    data,
+    error
+  } =
+    await supabaseClient.auth.signInWithPassword({
+      email: email,
+      password: password
+    });
 
-  try {
+  setButtonLoading(
+    "loginButton",
+    false,
+    "Sign in"
+  );
 
-    const {
-      data,
-      error
-    } =
-      await supabaseClient.auth.signInWithPassword({
-
-        email: email,
-
-        password: password
-
-      });
-
-
-    if (error) {
-
-      console.error(
-        "Login error:",
-        error
-      );
-
-      showToast(
-        error.message
-      );
-
-      return;
-
-    }
-
-
-    if (
-      data &&
-      data.user
-    ) {
-
-      currentUser =
-        data.user;
-
-      enterMailApp(
-        currentUser,
-        true
-      );
-
-    } else {
-
-      showToast(
-        "Login failed. Please try again."
-      );
-
-    }
-
-  } catch (error) {
-
-    console.error(
-      "Login failed:",
-      error
-    );
+  if (error) {
 
     showToast(
-      "Unable to sign in. Please try again."
+      error.message
     );
 
+    return;
+
   }
+
+  currentUser = data.user;
+
+  await loadUserProfile();
+
+  await enterMailApp();
 
 }
 
 
 /* =========================================
-   DEMO LOGIN
-========================================= */
-
-function demoLogin() {
-
-  document
-    .getElementById("loginEmail")
-    .value =
-      "alex@example.com";
-
-  document
-    .getElementById("loginPassword")
-    .value =
-      "demo";
-
-
-  enterMailApp(
-    null,
-    true,
-    true
-  );
-
-}
-
-
-/* =========================================
-   ENTER MAIL APP
-========================================= */
-
-function enterMailApp(
-  user = null,
-  showWelcome = true,
-  demo = false
-) {
-
-  if (user) {
-
-    currentUser =
-      user;
-
-  }
-
-
-  updateUserProfile(
-    user,
-    demo
-  );
-
-
-  document
-    .getElementById("loginScreen")
-    .classList
-    .add("hidden");
-
-
-  document
-    .getElementById("signupScreen")
-    .classList
-    .add("hidden");
-
-
-  document
-    .getElementById("mailApp")
-    .classList
-    .remove("hidden");
-
-
-  renderEmails();
-
-
-  if (showWelcome) {
-
-    if (demo) {
-
-      showToast(
-        "Welcome to Prime Mail Demo."
-      );
-
-    } else {
-
-      showToast(
-        "Welcome to Prime Mail."
-      );
-
-    }
-
-  }
-
-}
-
-
-/* =========================================
-   UPDATE USER PROFILE
-========================================= */
-
-function updateUserProfile(
-  user,
-  demo = false
-) {
-
-  let name =
-    "Prime Mail User";
-
-  let email =
-    "user@example.com";
-
-
-  if (demo) {
-
-    name =
-      "Alex User";
-
-    email =
-      "alex@example.com";
-
-  }
-
-
-  if (user) {
-
-    email =
-      user.email ||
-      email;
-
-
-    const metadata =
-      user.user_metadata ||
-      {};
-
-
-    name =
-      metadata.full_name ||
-      metadata.name ||
-      email.split("@")[0] ||
-      name;
-
-  }
-
-
-  const firstLetter =
-    name
-      .trim()
-      .charAt(0)
-      .toUpperCase() ||
-      "P";
-
-
-  const profileName =
-    document.querySelector(
-      ".profile-name"
-    );
-
-
-  const profileAvatar =
-    document.querySelector(
-      ".profile-button .avatar"
-    );
-
-
-  const profileFullName =
-    document.getElementById(
-      "profileFullName"
-    );
-
-
-  const profileEmail =
-    document.getElementById(
-      "profileEmail"
-    );
-
-
-  const largeAvatar =
-    document.querySelector(
-      ".large-avatar"
-    );
-
-
-  if (profileName) {
-
-    profileName.textContent =
-      name;
-
-  }
-
-
-  if (profileAvatar) {
-
-    profileAvatar.textContent =
-      firstLetter;
-
-  }
-
-
-  if (largeAvatar) {
-
-    largeAvatar.textContent =
-      firstLetter;
-
-  }
-
-
-  if (profileFullName) {
-
-    profileFullName.textContent =
-      name;
-
-  }
-
-
-  if (profileEmail) {
-
-    profileEmail.textContent =
-      email;
-
-  }
-
-}
-
-
-/* =========================================
-   SIGNUP
+   REAL SIGNUP
 ========================================= */
 
 async function signup() {
@@ -572,20 +193,26 @@ async function signup() {
       .value
       .trim();
 
+  const username =
+    document
+      .getElementById("signupUsername")
+      .value
+      .trim()
+      .toLowerCase();
+
   const email =
     document
       .getElementById("signupEmail")
       .value
-      .trim();
+      .trim()
+      .toLowerCase();
 
   const password =
     document
       .getElementById("signupPassword")
-      .value
-      .trim();
+      .value;
 
-
-  if (!name || !email || !password) {
+  if (!name || !username || !email || !password) {
 
     showToast(
       "Please complete all fields."
@@ -595,6 +222,15 @@ async function signup() {
 
   }
 
+  if (!/^[a-z0-9_]{3,30}$/.test(username)) {
+
+    showToast(
+      "Username must be 3-30 characters: letters, numbers or underscore."
+    );
+
+    return;
+
+  }
 
   if (password.length < 6) {
 
@@ -606,203 +242,38 @@ async function signup() {
 
   }
 
-
-  showToast(
-    "Creating your account..."
+  setButtonLoading(
+    "signupButton",
+    true,
+    "Creating account..."
   );
 
 
-  try {
+  /*
+    Check whether username is already used.
+  */
 
-    const {
-      data,
-      error
-    } =
-      await supabaseClient.auth.signUp({
-
-        email: email,
-
-        password: password,
-
-        options: {
-
-          data: {
-
-            full_name: name
-
-          }
-
-        }
-
-      });
+  const {
+    data: existingUsername,
+    error: usernameError
+  } =
+    await supabaseClient
+      .from("profiles")
+      .select("id")
+      .eq("username", username)
+      .maybeSingle();
 
 
-    if (error) {
+  if (usernameError) {
 
-      console.error(
-        "Signup error:",
-        error
-      );
-
-      showToast(
-        error.message
-      );
-
-      return;
-
-    }
-
-
-    /*
-      Supabase Email Confirmation
-      is currently OFF in your project.
-
-      Therefore a session should normally
-      be returned immediately.
-    */
-
-    if (
-      data &&
-      data.session &&
-      data.user
-    ) {
-
-      currentUser =
-        data.user;
-
-      enterMailApp(
-        currentUser,
-        true
-      );
-
-      clearSignupFields();
-
-      return;
-
-    }
-
-
-    /*
-      Fallback in case email confirmation
-      is enabled later.
-    */
-
-    showToast(
-      "Account created. Please sign in."
-    );
-
-
-    setTimeout(
-      () => {
-
-        showLogin();
-
-        document
-          .getElementById("loginEmail")
-          .value =
-            email;
-
-      },
-      900
-    );
-
-
-  } catch (error) {
-
-    console.error(
-      "Signup failed:",
-      error
+    setButtonLoading(
+      "signupButton",
+      false,
+      "Create account"
     );
 
     showToast(
-      "Unable to create account."
-    );
-
-  }
-
-}
-
-
-/* =========================================
-   CLEAR SIGNUP FIELDS
-========================================= */
-
-function clearSignupFields() {
-
-  document
-    .getElementById("signupName")
-    .value = "";
-
-  document
-    .getElementById("signupEmail")
-    .value = "";
-
-  document
-    .getElementById("signupPassword")
-    .value = "";
-
-}
-
-
-/* =========================================
-   LOGIN / SIGNUP SCREENS
-========================================= */
-
-function showSignup() {
-
-  document
-    .getElementById("loginScreen")
-    .classList
-    .add("hidden");
-
-
-  document
-    .getElementById("signupScreen")
-    .classList
-    .remove("hidden");
-
-}
-
-
-function showLogin() {
-
-  document
-    .getElementById("signupScreen")
-    .classList
-    .add("hidden");
-
-
-  document
-    .getElementById("mailApp")
-    .classList
-    .add("hidden");
-
-
-  document
-    .getElementById("loginScreen")
-    .classList
-    .remove("hidden");
-
-}
-
-
-/* =========================================
-   FORGOT PASSWORD
-========================================= */
-
-async function showForgotPassword() {
-
-  const email =
-    document
-      .getElementById("loginEmail")
-      .value
-      .trim();
-
-
-  if (!email) {
-
-    showToast(
-      "Please enter your email first."
+      usernameError.message
     );
 
     return;
@@ -810,143 +281,463 @@ async function showForgotPassword() {
   }
 
 
-  try {
+  if (existingUsername) {
 
-    const {
-      error
-    } =
-      await supabaseClient.auth
-        .resetPasswordForEmail(
-          email,
-          {
-            redirectTo:
-              window.location.origin
-          }
-        );
-
-
-    if (error) {
-
-      showToast(
-        error.message
-      );
-
-      return;
-
-    }
-
-
-    showToast(
-      "Password reset email sent."
-    );
-
-
-  } catch (error) {
-
-    console.error(
-      "Password reset error:",
-      error
+    setButtonLoading(
+      "signupButton",
+      false,
+      "Create account"
     );
 
     showToast(
-      "Password reset could not be started."
+      "That username is already taken."
     );
+
+    return;
 
   }
 
-}
+
+  /*
+    Create real Supabase Auth user.
+  */
+
+  const {
+    data,
+    error
+  } =
+    await supabaseClient.auth.signUp({
+
+      email: email,
+
+      password: password,
+
+      options: {
+
+        data: {
+
+          full_name: name,
+
+          username: username
+
+        }
+
+      }
+
+    });
 
 
-/* =========================================
-   LOGOUT
-========================================= */
-
-async function logout() {
-
-  try {
-
-    const {
-      error
-    } =
-      await supabaseClient.auth.signOut();
+  setButtonLoading(
+    "signupButton",
+    false,
+    "Create account"
+  );
 
 
-    if (error) {
-
-      console.error(
-        "Logout error:",
-        error
-      );
-
-      showToast(
-        error.message
-      );
-
-      return;
-
-    }
-
-
-    currentUser = null;
-
-    showLoginScreen();
-
-
-    showToast(
-      "You have been signed out."
-    );
-
-
-  } catch (error) {
-
-    console.error(
-      "Logout failed:",
-      error
-    );
+  if (error) {
 
     showToast(
-      "Unable to sign out."
+      error.message
     );
+
+    return;
 
   }
 
-}
+
+  /*
+    If email confirmation is disabled,
+    Supabase normally gives us a session.
+  */
+
+  if (data.session && data.user) {
+
+    currentUser = data.user;
+
+    await loadUserProfile();
+
+    await enterMailApp();
+
+    showToast(
+      "Prime Mail account created successfully."
+    );
+
+    return;
+
+  }
 
 
-/* =========================================
-   SHOW LOGIN SCREEN
-========================================= */
+  /*
+    If confirmation is enabled later,
+    user must verify email first.
+  */
 
-function showLoginScreen() {
+  showToast(
+    "Account created. Please check your email to confirm your account."
+  );
 
   document
-    .getElementById("mailApp")
+    .getElementById("loginEmail")
+    .value = email;
+
+  showLogin();
+
+}
+
+
+/* =========================================
+   DEMO LOGIN
+========================================= */
+
+function demoLogin() {
+
+  showToast(
+    "Demo mode has been removed. Please create a real account."
+  );
+
+}
+
+
+/* =========================================
+   LOAD PROFILE
+========================================= */
+
+async function loadUserProfile() {
+
+  if (!currentUser) return;
+
+
+  const {
+    data,
+    error
+  } =
+    await supabaseClient
+      .from("profiles")
+      .select("*")
+      .eq("id", currentUser.id)
+      .maybeSingle();
+
+
+  if (error) {
+
+    console.error(
+      "Profile error:",
+      error
+    );
+
+    return;
+
+  }
+
+
+  currentProfile = data;
+
+
+  if (currentProfile) {
+
+    updateProfileUI();
+
+  }
+
+}
+
+
+/* =========================================
+   ENTER MAIL APP
+========================================= */
+
+async function enterMailApp() {
+
+  document
+    .getElementById("loginScreen")
     .classList
     .add("hidden");
-
 
   document
     .getElementById("signupScreen")
     .classList
     .add("hidden");
 
-
   document
-    .getElementById("loginScreen")
+    .getElementById("mailApp")
     .classList
     .remove("hidden");
 
 
-  document
-    .getElementById("profileMenu")
-    .classList
-    .add("hidden");
+  currentFolder = "inbox";
+
+  searchTerm = "";
+
+
+  const search =
+    document.getElementById("searchInput");
+
+  if (search) {
+
+    search.value = "";
+
+  }
+
+
+  updateFolderHeader();
+
+  updateProfileUI();
+
+  await loadEmails();
 
 }
 
 
 /* =========================================
-   EMAIL RENDERING
+   LOAD REAL EMAILS FROM DATABASE
+========================================= */
+
+async function loadEmails() {
+
+  if (!currentUser) {
+
+    emails = [];
+
+    renderEmails();
+
+    return;
+
+  }
+
+
+  let query =
+    supabaseClient
+      .from("emails")
+      .select("*")
+      .or(
+        `sender_id.eq.${currentUser.id},recipient_id.eq.${currentUser.id}`
+      )
+      .order(
+        "created_at",
+        {
+          ascending: false
+        }
+      );
+
+
+  const {
+    data,
+    error
+  } = await query;
+
+
+  if (error) {
+
+    console.error(
+      "Email loading error:",
+      error
+    );
+
+    showToast(
+      "Could not load mailbox."
+    );
+
+    return;
+
+  }
+
+
+  emails =
+    (data || []).map(
+      convertDatabaseEmail
+    );
+
+
+  renderEmails();
+
+  updateCounts();
+
+}
+
+
+/* =========================================
+   CONVERT DATABASE EMAIL
+========================================= */
+
+function convertDatabaseEmail(row) {
+
+  const isSender =
+    row.sender_id === currentUser.id;
+
+  let folder =
+    row.mailbox_type || "inbox";
+
+
+  if (isSender && folder === "inbox") {
+
+    folder = "sent";
+
+  }
+
+
+  return {
+
+    id: row.id,
+
+    folder: folder,
+
+    sender:
+      isSender
+        ? "You"
+        : "Prime Mail User",
+
+    email:
+      isSender
+        ? (currentUser.email || "")
+        : "Prime Mail User",
+
+    subject:
+      row.subject || "(No subject)",
+
+    preview:
+      row.body || "",
+
+    body:
+      row.body || "",
+
+    date:
+      formatDate(row.created_at),
+
+    unread:
+      !row.is_read && !isSender,
+
+    starred:
+      Boolean(row.is_starred),
+
+    attachment:
+      false
+
+  };
+
+}
+
+
+/* =========================================
+   FOLDER DISPLAY
+========================================= */
+
+function openFolder(folder) {
+
+  currentFolder = folder;
+
+  searchTerm = "";
+
+
+  const search =
+    document.getElementById(
+      "searchInput"
+    );
+
+  if (search) {
+
+    search.value = "";
+
+  }
+
+
+  document
+    .querySelectorAll(".nav-item")
+    .forEach(
+      button => {
+
+        button
+          .classList
+          .remove("active");
+
+      }
+    );
+
+
+  const active =
+    document.querySelector(
+      `.nav-item[data-folder="${folder}"]`
+    );
+
+
+  if (active) {
+
+    active
+      .classList
+      .add("active");
+
+  }
+
+
+  updateFolderHeader();
+
+  renderEmails();
+
+  closeMobileSidebar();
+
+}
+
+
+function updateFolderHeader() {
+
+  const titles = {
+
+    inbox: [
+      "Inbox",
+      "Your recent conversations"
+    ],
+
+    starred: [
+      "Starred",
+      "Messages you have starred"
+    ],
+
+    sent: [
+      "Sent",
+      "Messages you have sent"
+    ],
+
+    drafts: [
+      "Drafts",
+      "Messages waiting to be finished"
+    ],
+
+    spam: [
+      "Spam",
+      "Suspicious or unwanted messages"
+    ],
+
+    trash: [
+      "Trash",
+      "Deleted messages"
+    ]
+
+  };
+
+
+  const data =
+    titles[currentFolder] ||
+    [
+      "Mail",
+      "Your messages"
+    ];
+
+
+  document
+    .getElementById("folderTitle")
+    .textContent =
+      data[0];
+
+
+  document
+    .getElementById("folderDescription")
+    .textContent =
+      data[1];
+
+}
+
+
+/* =========================================
+   RENDER REAL EMAILS
 ========================================= */
 
 function renderEmails() {
@@ -960,6 +751,9 @@ function renderEmails() {
     document.getElementById(
       "emptyState"
     );
+
+
+  if (!list || !empty) return;
 
 
   list.innerHTML = "";
@@ -995,10 +789,15 @@ function renderEmails() {
         email => {
 
           const content =
-            `${email.sender}
-             ${email.email}
-             ${email.subject}
-             ${email.preview}`
+            (
+              email.sender +
+              " " +
+              email.email +
+              " " +
+              email.subject +
+              " " +
+              email.preview
+            )
               .toLowerCase();
 
 
@@ -1012,9 +811,7 @@ function renderEmails() {
   }
 
 
-  if (
-    filtered.length === 0
-  ) {
+  if (filtered.length === 0) {
 
     empty
       .classList
@@ -1066,10 +863,7 @@ function renderEmails() {
               ? "starred"
               : ""
           }"
-          onclick="toggleStar(
-            event,
-            ${email.id}
-          )"
+          onclick="toggleStar(event, '${escapeAttribute(email.id)}')"
         >
           ${
             email.starred
@@ -1080,47 +874,27 @@ function renderEmails() {
 
         <div
           class="email-sender"
-          title="${escapeHTML(
-            email.email
-          )}"
+          title="${escapeAttribute(email.email)}"
         >
-          ${escapeHTML(
-            email.sender
-          )}
+          ${escapeHTML(email.sender)}
         </div>
 
         <div class="email-main">
 
           <span class="email-subject">
-            ${escapeHTML(
-              email.subject
-            )}
+            ${escapeHTML(email.subject)}
           </span>
 
           <span> — </span>
 
           <span class="email-preview">
-            ${escapeHTML(
-              email.preview
-            )}
+            ${escapeHTML(email.preview)}
           </span>
 
         </div>
 
-        ${
-          email.attachment
-            ? `
-              <span class="attachment-icon">
-                📎
-              </span>
-            `
-            : ""
-        }
-
         <div class="email-date">
-          ${escapeHTML(
-            email.date
-          )}
+          ${escapeHTML(email.date)}
         </div>
 
       `;
@@ -1144,140 +918,16 @@ function renderEmails() {
           }
 
 
-          openEmail(
-            email.id
-          );
+          openEmail(email.id);
 
         }
       );
 
 
-      list.appendChild(
-        row
-      );
+      list.appendChild(row);
 
     }
   );
-
-}
-
-
-/* =========================================
-   FOLDERS
-========================================= */
-
-function openFolder(
-  folder
-) {
-
-  currentFolder =
-    folder;
-
-  searchTerm =
-    "";
-
-
-  document
-    .getElementById(
-      "searchInput"
-    )
-    .value = "";
-
-
-  document
-    .querySelectorAll(
-      ".nav-item"
-    )
-    .forEach(
-      button => {
-
-        button
-          .classList
-          .remove(
-            "active"
-          );
-
-      }
-    );
-
-
-  const active =
-    document.querySelector(
-      `.nav-item[data-folder="${folder}"]`
-    );
-
-
-  if (active) {
-
-    active
-      .classList
-      .add("active");
-
-  }
-
-
-  const titles = {
-
-    inbox: [
-      "Inbox",
-      "Your recent conversations"
-    ],
-
-    starred: [
-      "Starred",
-      "Messages you have starred"
-    ],
-
-    sent: [
-      "Sent",
-      "Messages you have sent"
-    ],
-
-    drafts: [
-      "Drafts",
-      "Messages waiting to be finished"
-    ],
-
-    spam: [
-      "Spam",
-      "Suspicious or unwanted messages"
-    ],
-
-    trash: [
-      "Trash",
-      "Deleted messages"
-    ]
-
-  };
-
-
-  const data =
-    titles[folder] ||
-    [
-      "Mail",
-      "Your messages"
-    ];
-
-
-  document
-    .getElementById(
-      "folderTitle"
-    )
-    .textContent =
-      data[0];
-
-
-  document
-    .getElementById(
-      "folderDescription"
-    )
-    .textContent =
-      data[1];
-
-
-  renderEmails();
-
-  closeMobileSidebar();
 
 }
 
@@ -1303,10 +953,58 @@ function searchMail() {
 
 
 /* =========================================
+   OPEN EMAIL
+========================================= */
+
+async function openEmail(id) {
+
+  const email =
+    emails.find(
+      item =>
+        item.id === id
+    );
+
+
+  if (!email) return;
+
+
+  if (
+    email.unread &&
+    currentUser
+  ) {
+
+    await supabaseClient
+      .from("emails")
+      .update({
+        is_read: true
+      })
+      .eq("id", id)
+      .eq(
+        "recipient_id",
+        currentUser.id
+      );
+
+
+    email.unread = false;
+
+  }
+
+
+  showToast(
+    email.subject
+  );
+
+
+  renderEmails();
+
+}
+
+
+/* =========================================
    STAR
 ========================================= */
 
-function toggleStar(
+async function toggleStar(
   event,
   id
 ) {
@@ -1321,7 +1019,29 @@ function toggleStar(
     );
 
 
-  if (!email) {
+  if (!email) return;
+
+
+  const newValue =
+    !email.starred;
+
+
+  const {
+    error
+  } =
+    await supabaseClient
+      .from("emails")
+      .update({
+        is_starred: newValue
+      })
+      .eq("id", id);
+
+
+  if (error) {
+
+    showToast(
+      error.message
+    );
 
     return;
 
@@ -1329,50 +1049,7 @@ function toggleStar(
 
 
   email.starred =
-    !email.starred;
-
-
-  renderEmails();
-
-
-  showToast(
-    email.starred
-      ? "Added to Starred."
-      : "Removed from Starred."
-  );
-
-}
-
-
-/* =========================================
-   OPEN EMAIL
-========================================= */
-
-function openEmail(
-  id
-) {
-
-  const email =
-    emails.find(
-      item =>
-        item.id === id
-    );
-
-
-  if (!email) {
-
-    return;
-
-  }
-
-
-  email.unread =
-    false;
-
-
-  showToast(
-    `Opening: ${email.subject}`
-  );
+    newValue;
 
 
   renderEmails();
@@ -1386,12 +1063,13 @@ function openEmail(
 
 function toggleSelectAll() {
 
-  const checked =
-    document
-      .getElementById(
-        "selectAll"
-      )
-      .checked;
+  const master =
+    document.getElementById(
+      "selectAll"
+    );
+
+
+  if (!master) return;
 
 
   document
@@ -1402,7 +1080,7 @@ function toggleSelectAll() {
       box => {
 
         box.checked =
-          checked;
+          master.checked;
 
       }
     );
@@ -1414,7 +1092,7 @@ function toggleSelectAll() {
    DELETE SELECTED
 ========================================= */
 
-function deleteSelected() {
+async function deleteSelected() {
 
   const selected =
     Array.from(
@@ -1439,56 +1117,44 @@ function deleteSelected() {
 
   const ids =
     selected.map(
-      box => {
-
-        return Number(
-          box
-            .closest(
-              ".email-row"
-            )
-            .dataset.id
-        );
-
-      }
+      box =>
+        box
+          .closest(".email-row")
+          .dataset.id
     );
 
 
-  ids.forEach(
-    id => {
+  for (
+    const id of ids
+  ) {
 
-      const email =
-        emails.find(
-          item =>
-            item.id === id
-        );
+    await supabaseClient
+      .from("emails")
+      .update({
+        mailbox_type: "trash"
+      })
+      .eq("id", id);
 
-
-      if (email) {
-
-        email.folder =
-          "trash";
-
-      }
-
-    }
-  );
+  }
 
 
-  document
-    .getElementById(
+  const master =
+    document.getElementById(
       "selectAll"
-    )
-    .checked =
+    );
+
+  if (master) {
+
+    master.checked =
       false;
 
+  }
 
-  updateCounts();
 
-  renderEmails();
-
+  await loadEmails();
 
   showToast(
-    `${ids.length} message(s) moved to Trash.`
+    "Message(s) moved to Trash."
   );
 
 }
@@ -1498,7 +1164,7 @@ function deleteSelected() {
    ARCHIVE
 ========================================= */
 
-function archiveSelected() {
+async function archiveSelected() {
 
   const selected =
     Array.from(
@@ -1521,39 +1187,30 @@ function archiveSelected() {
   }
 
 
-  selected.forEach(
-    box => {
-
-      const id =
-        Number(
-          box
-            .closest(
-              ".email-row"
-            )
-            .dataset.id
-        );
+  const ids =
+    selected.map(
+      box =>
+        box
+          .closest(".email-row")
+          .dataset.id
+    );
 
 
-      const email =
-        emails.find(
-          item =>
-            item.id === id
-        );
+  for (
+    const id of ids
+  ) {
+
+    await supabaseClient
+      .from("emails")
+      .update({
+        mailbox_type: "archive"
+      })
+      .eq("id", id);
+
+  }
 
 
-      if (email) {
-
-        email.folder =
-          "archive";
-
-      }
-
-    }
-  );
-
-
-  renderEmails();
-
+  await loadEmails();
 
   showToast(
     "Messages archived."
@@ -1566,24 +1223,18 @@ function archiveSelected() {
    REFRESH
 ========================================= */
 
-function refreshMail() {
+async function refreshMail() {
 
   showToast(
     "Checking for new messages..."
   );
 
 
-  setTimeout(
-    () => {
+  await loadEmails();
 
-      renderEmails();
 
-      showToast(
-        "Inbox is up to date."
-      );
-
-    },
-    700
+  showToast(
+    "Mailbox is up to date."
   );
 
 }
@@ -1668,7 +1319,9 @@ function minimizeCompose() {
     !composeMinimized;
 
 
-  if (composeMinimized) {
+  if (
+    composeMinimized
+  ) {
 
     compose.style.height =
       "45px";
@@ -1684,10 +1337,21 @@ function minimizeCompose() {
 
 
 /* =========================================
-   SEND EMAIL - DEMO
+   SEND
 ========================================= */
 
-function sendEmail() {
+async function sendEmail() {
+
+  if (!currentUser) {
+
+    showToast(
+      "Please sign in first."
+    );
+
+    return;
+
+  }
+
 
   const to =
     document
@@ -1749,59 +1413,296 @@ function sendEmail() {
   }
 
 
-  emails.unshift({
+  /*
+    IMPORTANT:
+    At this stage the database can store
+    emails between known Prime Mail users,
+    but we have not yet built the public
+    email-address delivery system.
+  */
 
-    id:
-      Date.now(),
+  showToast(
+    "Real external email sending is not connected yet."
+  );
 
-    folder:
-      "sent",
-
-    sender:
-      "You",
-
-    email:
-      to,
-
-    subject:
-      subject,
-
-    preview:
-      message,
-
-    date:
-      "Just now",
-
-    unread:
-      false,
-
-    starred:
-      false,
-
-    attachment:
-      false
-
-  });
+}
 
 
-  closeCompose();
+/* =========================================
+   PROFILE UI
+========================================= */
 
-  updateCounts();
+function updateProfileUI() {
+
+  if (!currentUser) return;
+
+
+  const fullName =
+    (
+      currentProfile &&
+      currentProfile.full_name
+    ) ||
+    currentUser
+      .user_metadata
+      ?.full_name ||
+    "Prime Mail User";
+
+
+  const username =
+    (
+      currentProfile &&
+      currentProfile.username
+    ) ||
+    currentUser
+      .user_metadata
+      ?.username ||
+    "user";
+
+
+  const email =
+    currentUser.email ||
+    "";
+
+
+  const initial =
+    fullName
+      .charAt(0)
+      .toUpperCase() ||
+    "P";
+
+
+  const profileName =
+    document.getElementById(
+      "profileName"
+    );
+
+  const profileFullName =
+    document.getElementById(
+      "profileFullName"
+    );
+
+  const profileEmail =
+    document.getElementById(
+      "profileEmail"
+    );
+
+  const profileUsername =
+    document.getElementById(
+      "profileUsername"
+    );
+
+  const avatar =
+    document.getElementById(
+      "profileAvatar"
+    );
+
+  const largeAvatar =
+    document.getElementById(
+      "profileLargeAvatar"
+    );
+
+
+  if (profileName) {
+
+    profileName.textContent =
+      fullName;
+
+  }
+
+
+  if (profileFullName) {
+
+    profileFullName.textContent =
+      fullName;
+
+  }
+
+
+  if (profileEmail) {
+
+    profileEmail.textContent =
+      email;
+
+  }
+
+
+  if (profileUsername) {
+
+    profileUsername.textContent =
+      "@" + username;
+
+  }
+
+
+  if (avatar) {
+
+    avatar.textContent =
+      initial;
+
+  }
+
+
+  if (largeAvatar) {
+
+    largeAvatar.textContent =
+      initial;
+
+  }
+
+}
+
+
+/* =========================================
+   LOGOUT
+========================================= */
+
+async function logout() {
+
+  const {
+    error
+  } =
+    await supabaseClient
+      .auth
+      .signOut();
+
+
+  if (error) {
+
+    showToast(
+      error.message
+    );
+
+    return;
+
+  }
+
+
+  currentUser = null;
+
+  currentProfile = null;
+
+  emails = [];
+
+  showLogin();
+
+  showToast(
+    "You have been signed out."
+  );
+
+}
+
+
+/* =========================================
+   LOGIN / SIGNUP SCREENS
+========================================= */
+
+function showSignup() {
+
+  document
+    .getElementById(
+      "loginScreen"
+    )
+    .classList
+    .add("hidden");
+
+
+  document
+    .getElementById(
+      "signupScreen"
+    )
+    .classList
+    .remove("hidden");
+
+}
+
+
+function showLogin() {
+
+  document
+    .getElementById(
+      "signupScreen"
+    )
+    .classList
+    .add("hidden");
+
+
+  document
+    .getElementById(
+      "mailApp"
+    )
+    .classList
+    .add("hidden");
+
+
+  document
+    .getElementById(
+      "loginScreen"
+    )
+    .classList
+    .remove("hidden");
+
+}
+
+
+/* =========================================
+   PASSWORD RESET
+========================================= */
+
+async function showForgotPassword() {
+
+  const email =
+    document
+      .getElementById(
+        "loginEmail"
+      )
+      .value
+      .trim();
+
+
+  if (!email) {
+
+    showToast(
+      "Enter your email first."
+    );
+
+    return;
+
+  }
+
+
+  const redirectUrl =
+    window.location.origin +
+    window.location.pathname;
+
+
+  const {
+    error
+  } =
+    await supabaseClient
+      .auth
+      .resetPasswordForEmail(
+        email,
+        {
+          redirectTo:
+            redirectUrl
+        }
+      );
+
+
+  if (error) {
+
+    showToast(
+      error.message
+    );
+
+    return;
+
+  }
 
 
   showToast(
-    "Demo message added to Sent."
+    "Password reset email sent."
   );
-
-
-  if (
-    currentFolder ===
-    "sent"
-  ) {
-
-    renderEmails();
-
-  }
 
 }
 
@@ -1815,18 +1716,14 @@ function toggleTheme() {
   document
     .body
     .classList
-    .toggle(
-      "dark"
-    );
+    .toggle("dark");
 
 
   const dark =
     document
       .body
       .classList
-      .contains(
-        "dark"
-      );
+      .contains("dark");
 
 
   localStorage.setItem(
@@ -1848,8 +1745,7 @@ function loadTheme() {
 
 
   if (
-    theme ===
-    "dark"
+    theme === "dark"
   ) {
 
     document
@@ -1873,9 +1769,7 @@ function toggleProfileMenu() {
       "profileMenu"
     )
     .classList
-    .toggle(
-      "hidden"
-    );
+    .toggle("hidden");
 
 }
 
@@ -1896,6 +1790,8 @@ document.addEventListener(
 
 
     if (
+      menu &&
+      profile &&
       !menu.classList.contains(
         "hidden"
       ) &&
@@ -1924,7 +1820,7 @@ document.addEventListener(
 function showSettings() {
 
   showToast(
-    "Settings will be connected in the next version."
+    "Settings will be connected next."
   );
 
 
@@ -1941,7 +1837,11 @@ function showSettings() {
 function showAccount() {
 
   showToast(
-    "Account management will be connected to Supabase."
+    currentProfile &&
+    currentProfile.username
+      ? "Username: @" +
+        currentProfile.username
+      : "Account loaded."
   );
 
 }
@@ -1950,7 +1850,7 @@ function showAccount() {
 function showNotifications() {
 
   showToast(
-    "You have 2 new notifications."
+    "Notifications will be connected next."
   );
 
 }
@@ -1959,7 +1859,7 @@ function showNotifications() {
 function addLabel() {
 
   showToast(
-    "Custom labels will be available soon."
+    "Custom labels will be added later."
   );
 
 }
@@ -1998,7 +1898,7 @@ function closeMobileSidebar() {
 
 
 /* =========================================
-   PAGINATION DEMO
+   PAGINATION
 ========================================= */
 
 function previousPage() {
@@ -2034,9 +1934,23 @@ function updateCounts() {
     ).length;
 
 
+  const draftCount =
+    emails.filter(
+      email =>
+        email.folder ===
+        "drafts"
+    ).length;
+
+
   const inboxElement =
     document.getElementById(
       "inboxCount"
+    );
+
+
+  const draftElement =
+    document.getElementById(
+      "draftCount"
     );
 
 
@@ -2046,6 +1960,84 @@ function updateCounts() {
       inboxCount;
 
   }
+
+
+  if (draftElement) {
+
+    draftElement.textContent =
+      draftCount;
+
+  }
+
+}
+
+
+/* =========================================
+   DATE
+========================================= */
+
+function formatDate(value) {
+
+  if (!value) {
+
+    return "";
+
+  }
+
+
+  const date =
+    new Date(value);
+
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+
+    return "";
+
+  }
+
+
+  return date.toLocaleString(
+    undefined,
+    {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit"
+    }
+  );
+
+}
+
+
+/* =========================================
+   BUTTON LOADING
+========================================= */
+
+function setButtonLoading(
+  id,
+  loading,
+  text
+) {
+
+  const button =
+    document.getElementById(
+      id
+    );
+
+
+  if (!button) return;
+
+
+  button.disabled =
+    loading;
+
+
+  button.textContent =
+    text;
 
 }
 
@@ -2057,15 +2049,12 @@ function updateCounts() {
 let toastTimer;
 
 
-function showToast(
-  message
-) {
+function showToast(message) {
 
   const toast =
     document.getElementById(
       "toast"
     );
-
 
   const messageElement =
     document.getElementById(
@@ -2073,10 +2062,9 @@ function showToast(
     );
 
 
-  if (
-    !toast ||
-    !messageElement
-  ) {
+  if (!toast || !messageElement) {
+
+    alert(message);
 
     return;
 
@@ -2089,9 +2077,7 @@ function showToast(
 
   toast
     .classList
-    .remove(
-      "hidden"
-    );
+    .remove("hidden");
 
 
   clearTimeout(
@@ -2108,7 +2094,7 @@ function showToast(
           .add("hidden");
 
       },
-      2800
+      3000
     );
 
 }
@@ -2116,12 +2102,9 @@ function showToast(
 
 /* =========================================
    SECURITY
-   Basic HTML escaping
 ========================================= */
 
-function escapeHTML(
-  value
-) {
+function escapeHTML(value) {
 
   return String(value)
 
@@ -2151,3 +2134,13 @@ function escapeHTML(
     );
 
 }
+
+
+function escapeAttribute(value) {
+
+  return escapeHTML(
+    value
+  );
+
+}
+```
