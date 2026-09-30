@@ -1319,9 +1319,9 @@ async function loadEmailAttachments() {
   }
 
   const result =
-    await supabaseClient
-      .from("email_attachments")
-      .select("*");
+    await supabaseClient.rpc(
+      "get_my_email_attachments"
+    );
 
   if (result.error) {
     console.error("Attachment loading error:", result.error);
