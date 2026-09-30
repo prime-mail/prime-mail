@@ -329,11 +329,6 @@ async function signup() {
       "signupUsername"
     );
 
-  const emailInput =
-    document.getElementById(
-      "signupEmail"
-    );
-
   const passwordInput =
     document.getElementById(
       "signupPassword"
@@ -350,11 +345,6 @@ async function signup() {
       ? usernameInput.value.trim().toLowerCase()
       : "";
 
-  const email =
-    emailInput
-      ? emailInput.value.trim().toLowerCase()
-      : "";
-
   const password =
     passwordInput
       ? passwordInput.value
@@ -364,7 +354,6 @@ async function signup() {
   if (
     !name ||
     !username ||
-    !email ||
     !password
   ) {
 
@@ -410,67 +399,21 @@ async function signup() {
   try {
 
     /*
-      Check username.
+      Prime Mail internal Auth identity.
+
+      This is used by Supabase Auth internally.
+      It is NOT a real public Internet email address.
     */
 
-    const usernameResult =
-      await supabaseClient
-        .from("profiles")
-        .select("id")
-        .eq(
-          "username",
-          username
-        )
-        .maybeSingle();
+    const authEmail =
+      username +
+      "@prime-mail.primemail.workers.dev";
 
-
-    if (usernameResult.error) {
-
-      setButtonLoading(
-        "signupButton",
-        false,
-        "Create account"
-      );
-
-      console.error(
-        "Username check error:",
-        usernameResult.error
-      );
-
-      showToast(
-        usernameResult.error.message
-      );
-
-      return;
-    }
-
-
-    if (
-      usernameResult.data
-    ) {
-
-      setButtonLoading(
-        "signupButton",
-        false,
-        "Create account"
-      );
-
-      showToast(
-        "That username is already taken."
-      );
-
-      return;
-    }
-
-
-    /*
-      Create Supabase Auth user.
-    */
 
     const signupResult =
       await supabaseClient.auth.signUp({
 
-        email: email,
+        email: authEmail,
 
         password: password,
 
@@ -503,9 +446,31 @@ async function signup() {
         signupResult.error
       );
 
-      showToast(
-        signupResult.error.message
-      );
+
+      const errorMessage =
+        signupResult.error.message ||
+        "";
+
+
+      if (
+        errorMessage
+          .toLowerCase()
+          .includes(
+            "already registered"
+          )
+      ) {
+
+        showToast(
+          "That username is already taken."
+        );
+
+      } else {
+
+        showToast(
+          errorMessage
+        );
+
+      }
 
       return;
     }
@@ -539,11 +504,12 @@ async function signup() {
 
 
     /*
-      If email confirmation is enabled.
+      This can happen when email confirmation
+      is enabled in Supabase.
     */
 
     showToast(
-      "Account created. Please check your email."
+      "Account created. Please sign in."
     );
 
 
@@ -556,7 +522,7 @@ async function signup() {
     if (loginEmail) {
 
       loginEmail.value =
-        email;
+        username;
     }
 
 
@@ -571,18 +537,20 @@ async function signup() {
       "Create account"
     );
 
+
     console.error(
       "Unexpected signup error:",
       error
     );
 
+
     showToast(
       "Account creation failed. Please try again."
     );
+
   }
 
 }
-
 
 /* =========================================================
    DEMO BUTTON
