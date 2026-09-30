@@ -777,9 +777,142 @@ async function loadEmails() {
   await loadLabels();
   await loadEmailAttachments();
 
+  const externalEmails =
+    await loadExternalEmails();
+
+  emails =
+    emails.concat(externalEmails);
+
   renderEmails();
   updateCounts();
 
+}
+
+
+/* =========================================================
+   EXTERNAL INBOX (PNTR)
+========================================================= */
+
+async function loadExternalEmails() {
+
+  if (
+    !currentUser ||
+    !supabaseClient
+  ) {
+    return [];
+  }
+
+  try {
+
+    const syncResult =
+      await supabaseClient.functions.invoke(
+        "sync-pntr-inbox",
+        {
+          body: {}
+        }
+      );
+
+    if (syncResult.error) {
+      console.error(
+        "External inbox sync error:",
+        syncResult.error
+      );
+    }
+
+  } catch (error) {
+
+    console.error(
+      "External inbox sync exception:",
+      error
+    );
+
+  }
+
+  const result =
+    await supabaseClient
+      .from("external_emails")
+      .select("*")
+      .eq("user_id", currentUser.id)
+      .order("received_at", {
+        ascending: false
+      });
+
+  if (result.error) {
+
+    console.error(
+      "External email loading error:",
+      result.error
+    );
+
+    return [];
+  }
+
+  return (result.data || []).map(
+    convertExternalEmail
+  );
+}
+
+
+function convertExternalEmail(row) {
+
+  return {
+
+    id:
+      "external_" + row.id,
+
+    external:
+      true,
+
+    externalId:
+      row.id,
+
+    folder:
+      "inbox",
+
+    sender:
+      row.sender_email ||
+      "External Sender",
+
+    email:
+      row.sender_email ||
+      "",
+
+    senderUsername:
+      "",
+
+    subject:
+      row.subject ||
+      "(No subject)",
+
+    preview:
+      row.body ||
+      "",
+
+    body:
+      row.body ||
+      "",
+
+    date:
+      formatDate(
+        row.received_at
+      ),
+
+    unread:
+      !Boolean(row.is_read),
+
+    starred:
+      false,
+
+    attachment:
+      false,
+
+    attachments:
+      [],
+
+    labels:
+      []
+
+  };
 }
 
 
@@ -2463,20 +2596,43 @@ async function openEmail(id) {
     currentUser
   ) {
 
-    const result =
-      await supabaseClient
-        .from("emails")
-        .update({
-          is_read: true
-        })
-        .eq(
-          "id",
-          id
-        )
-        .eq(
-          "recipient_id",
-          currentUser.id
-        );
+    let result;
+
+    if (email.external) {
+
+      result =
+        await supabaseClient
+          .from("external_emails")
+          .update({
+            is_read: true
+          })
+          .eq(
+            "id",
+            email.externalId
+          )
+          .eq(
+            "user_id",
+            currentUser.id
+          );
+
+    } else {
+
+      result =
+        await supabaseClient
+          .from("emails")
+          .update({
+            is_read: true
+          })
+          .eq(
+            "id",
+            id
+          )
+          .eq(
+            "recipient_id",
+            currentUser.id
+          );
+
+    }
 
     if (result.error) {
       console.error(
@@ -2619,8 +2775,18 @@ function showMessageViewer(email) {
   const body =
     document.createElement("div");
 
-  body.textContent =
-    email.body || email.preview || "";
+  const bodyText =
+    email.body ||
+    email.preview ||
+    "";
+
+  if (email.external) {
+    body.innerHTML =
+      linkifyPlainText(bodyText);
+  } else {
+    body.textContent =
+      bodyText;
+  }
 
   body.style.whiteSpace = "pre-wrap";
   body.style.wordBreak = "break-word";
@@ -2846,7 +3012,10 @@ async function toggleStar(
     return;
   }
 
-  if (email.folder === "drafts") {
+  if (
+    email.folder === "drafts" ||
+    email.external
+  ) {
     return;
   }
 
@@ -3028,6 +3197,22 @@ async function deleteSelected() {
 
     if (
       selectedEmail &&
+      selectedEmail.external
+    ) {
+
+      const externalResult =
+        await supabaseClient
+          .from("external_emails")
+          .delete()
+          .eq("id", selectedEmail.externalId)
+          .eq("user_id", currentUser.id);
+
+      if (!externalResult.error) {
+        permanentCount++;
+      }
+
+    } else if (
+      selectedEmail &&
       selectedEmail.folder === "drafts"
     ) {
 
@@ -3157,6 +3342,17 @@ async function archiveSelected() {
     const id =
       row.dataset.id;
 
+    const selectedEmail =
+      emails.find(function (email) {
+        return email.id === id;
+      });
+
+    if (
+      selectedEmail &&
+      selectedEmail.external
+    ) {
+      continue;
+    }
 
     await supabaseClient
       .from("emails")
@@ -4330,6 +4526,38 @@ function formatDate(
     }
   );
 
+}
+
+
+function linkifyPlainText(text) {
+
+  const escaped =
+    String(text || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+
+  return escaped.replace(
+    /(https?:\\/\\/[^\\s<]+)/g,
+    function (url) {
+      const cleanUrl =
+        url.replace(/[),.!?]+$/, "");
+
+      const trailing =
+        url.slice(cleanUrl.length);
+
+      return (
+        '<a href="' +
+        cleanUrl +
+        '" target="_blank" rel="noopener noreferrer">' +
+        cleanUrl +
+        "</a>" +
+        trailing
+      );
+    }
+  );
 }
 
 
