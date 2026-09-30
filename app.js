@@ -922,6 +922,8 @@ function convertDraft(row) {
 
 }
 
+setupSearchShortcuts();
+
 function setupDraftAutosave() {
 
   ["composeTo", "composeSubject", "composeMessage"]
@@ -1346,7 +1348,9 @@ function renderEmails() {
               " " +
               email.subject +
               " " +
-              email.preview
+              email.preview +
+              " " +
+              (email.draftTo || "")
             ).toLowerCase();
 
 
@@ -1607,6 +1611,71 @@ function searchMail() {
 
 
   renderEmails();
+
+}
+
+
+/* =========================================================
+   SEARCH KEYBOARD SHORTCUTS
+========================================================= */
+
+function setupSearchShortcuts() {
+
+  const input =
+    document.getElementById(
+      "searchInput"
+    );
+
+  if (!input) {
+    return;
+  }
+
+  input.addEventListener(
+    "keydown",
+    function (event) {
+
+      if (event.key === "Escape") {
+
+        input.value = "";
+        searchTerm = "";
+        renderEmails();
+        input.blur();
+
+        return;
+      }
+
+    }
+  );
+
+
+  document.addEventListener(
+    "keydown",
+    function (event) {
+
+      const active =
+        document.activeElement;
+
+      const isTyping =
+        active &&
+        (
+          active.tagName === "INPUT" ||
+          active.tagName === "TEXTAREA" ||
+          active.isContentEditable
+        );
+
+      if (
+        event.key === "/" &&
+        !isTyping
+      ) {
+
+        event.preventDefault();
+        input.focus();
+        input.select();
+
+      }
+
+    }
+  );
 
 }
 
