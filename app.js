@@ -32,6 +32,9 @@ let searchTerm = "";
 let composeMinimized = false;
 
 let emails = [];
+let drafts = [];
+let draftSaveTimer = null;
+let suppressDraftSave = false;
 
 let toastTimer = null;
 
@@ -82,6 +85,7 @@ document.addEventListener(
   async function () {
 
     loadTheme();
+    setupDraftAutosave();
 
     const ready =
       initializeSupabase();
@@ -780,6 +784,7 @@ async function loadEmails() {
       convertDatabaseEmail
     );
 
+  await loadDrafts();
 
   renderEmails();
 
@@ -867,6 +872,263 @@ function convertDatabaseEmail(
 
 }
 
+
+/* =========================================================
+   DRAFTS
+========================================================= */
+
+async function loadDrafts() {
+
+  if (!currentUser || !supabaseClient) {
+    drafts = [];
+    return;
+  }
+
+  const result =
+    await supabaseClient
+      .from("drafts")
+      .select("*")
+      .eq("user_id", currentUser.id)
+      .order("updated_at", { ascending: false });
+
+  if (result.error) {
+    console.error("Draft loading error:", result.error);
+    drafts = [];
+    return;
+  }
+
+  drafts = (result.data || []).map(convertDraft);
+
+  emails =
+    emails
+      .filter(function (email) {
+        return email.folder !== "drafts";
+      })
+      .concat(drafts);
+}
+
+function convertDraft(row) {
+
+  return {
+    id: row.id,
+    folder: "drafts",
+    sender: "Draft",
+    email: currentUser ? (currentUser.email || "") : "",
+    subject: row.subject || "(No subject)",
+    preview: row.body || "",
+    body: row.body || "",
+    draftTo: row.to_username || "",
+    date: formatDate(row.updated_at || row.created_at),
+    unread: false,
+    starred: false,
+    attachment: false
+  };
+
+}
+
+function setupDraftAutosave() {
+
+  ["composeTo", "composeSubject", "composeMessage"]
+    .forEach(function (id) {
+
+      const input = document.getElementById(id);
+
+      if (!input) {
+        return;
+      }
+
+      input.addEventListener("input", scheduleDraftSave);
+      input.addEventListener("change", scheduleDraftSave);
+
+    });
+
+}
+
+function scheduleDraftSave() {
+
+  if (suppressDraftSave || !currentUser) {
+    return;
+  }
+
+  clearTimeout(draftSaveTimer);
+
+  draftSaveTimer =
+    setTimeout(async function () {
+      await saveDraft();
+    }, 700);
+
+}
+
+async function saveDraft() {
+
+  if (suppressDraftSave || !currentUser || !supabaseClient) {
+    return null;
+  }
+
+  const toInput = document.getElementById("composeTo");
+  const subjectInput = document.getElementById("composeSubject");
+  const messageInput = document.getElementById("composeMessage");
+
+  const to = toInput ? toInput.value.trim().toLowerCase() : "";
+  const subject = subjectInput ? subjectInput.value.trim() : "";
+  const body = messageInput ? messageInput.value : "";
+
+  if (!to && !subject && !body.trim()) {
+    return null;
+  }
+
+  const compose = document.getElementById("composeWindow");
+  const draftId = compose ? (compose.dataset.draftId || "") : "";
+
+  let result;
+
+  if (draftId) {
+
+    result =
+      await supabaseClient
+        .from("drafts")
+        .update({
+          to_username: to,
+          subject: subject,
+          body: body,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", draftId)
+        .eq("user_id", currentUser.id)
+        .select()
+        .maybeSingle();
+
+  } else {
+
+    result =
+      await supabaseClient
+        .from("drafts")
+        .insert({
+          user_id: currentUser.id,
+          to_username: to,
+          subject: subject,
+          body: body
+        })
+        .select()
+        .single();
+
+  }
+
+  if (result.error) {
+    console.error("Draft save error:", result.error);
+    return null;
+  }
+
+  if (result.data && compose) {
+    compose.dataset.draftId = result.data.id;
+  }
+
+  const draft = convertDraft(result.data);
+
+  emails =
+    emails.filter(function (email) {
+      return email.folder !== "drafts" || email.id === draft.id;
+    });
+
+  const existingIndex =
+    emails.findIndex(function (email) {
+      return email.id === draft.id;
+    });
+
+  if (existingIndex >= 0) {
+    emails[existingIndex] = draft;
+  } else {
+    emails.unshift(draft);
+  }
+
+  drafts =
+    emails.filter(function (email) {
+      return email.folder === "drafts";
+    });
+
+  renderEmails();
+  updateCounts();
+
+  return draft;
+}
+
+async function editDraft(email) {
+
+  if (!email || email.folder !== "drafts") {
+    return;
+  }
+
+  const compose = document.getElementById("composeWindow");
+
+  if (!compose) {
+    return;
+  }
+
+  suppressDraftSave = true;
+
+  openCompose();
+
+  const toInput = document.getElementById("composeTo");
+  const subjectInput = document.getElementById("composeSubject");
+  const messageInput = document.getElementById("composeMessage");
+
+  if (toInput) {
+    toInput.value = email.draftTo || "";
+  }
+
+  if (subjectInput) {
+    subjectInput.value =
+      email.subject === "(No subject)" ? "" : (email.subject || "");
+  }
+
+  if (messageInput) {
+    messageInput.value = email.body || "";
+  }
+
+  compose.dataset.draftId = email.id;
+  delete compose.dataset.replyId;
+
+  suppressDraftSave = false;
+
+  if (toInput) {
+    toInput.focus();
+  }
+
+}
+
+async function deleteCurrentDraft() {
+
+  const compose = document.getElementById("composeWindow");
+  const draftId = compose ? (compose.dataset.draftId || "") : "";
+
+  if (!draftId) {
+    suppressDraftSave = true;
+    hideComposeWindow();
+    suppressDraftSave = false;
+    return;
+  }
+
+  const result =
+    await supabaseClient
+      .from("drafts")
+      .delete()
+      .eq("id", draftId)
+      .eq("user_id", currentUser.id);
+
+  if (result.error) {
+    console.error("Draft delete error:", result.error);
+    showToast(result.error.message);
+    return;
+  }
+
+  suppressDraftSave = true;
+  hideComposeWindow();
+  suppressDraftSave = false;
+
+  await loadEmails();
+
+  showToast("Draft deleted.");
+}
 
 /* =========================================================
    OPEN FOLDER
@@ -1366,6 +1628,11 @@ async function openEmail(id) {
     return;
   }
 
+  if (email.folder === "drafts") {
+    await editDraft(email);
+    return;
+  }
+
   /* Mark incoming message as read */
 
   if (
@@ -1716,6 +1983,10 @@ async function toggleStar(
     return;
   }
 
+  if (email.folder === "drafts") {
+    return;
+  }
+
 
   const newValue =
     !email.starred;
@@ -1834,17 +2105,36 @@ async function deleteSelected() {
     const id =
       row.dataset.id;
 
+    const selectedEmail =
+      emails.find(function (email) {
+        return email.id === id;
+      });
 
-    await supabaseClient
-      .from("emails")
-      .update({
-        mailbox_type:
-          "trash"
-      })
-      .eq(
-        "id",
-        id
-      );
+    if (
+      selectedEmail &&
+      selectedEmail.folder === "drafts"
+    ) {
+
+      await supabaseClient
+        .from("drafts")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", currentUser.id);
+
+    } else {
+
+      await supabaseClient
+        .from("emails")
+        .update({
+          mailbox_type:
+            "trash"
+        })
+        .eq(
+          "id",
+          id
+        );
+
+    }
   }
 
 
@@ -2007,52 +2297,69 @@ function openCompose() {
 }
 
 
-function closeCompose() {
+async function closeCompose() {
+
+  if (!suppressDraftSave) {
+    await saveDraft();
+  }
+
+  hideComposeWindow();
+
+}
+
+function hideComposeWindow() {
 
   const compose =
     document.getElementById(
       "composeWindow"
     );
 
-
   if (compose) {
 
     compose
       .classList
       .add("hidden");
+
+    delete compose.dataset.draftId;
+    delete compose.dataset.replyId;
   }
 
+  const to = document.getElementById("composeTo");
+  const subject = document.getElementById("composeSubject");
+  const message = document.getElementById("composeMessage");
 
-  const to =
-    document.getElementById(
-      "composeTo"
-    );
-
-  const subject =
-    document.getElementById(
-      "composeSubject"
-    );
-
-  const message =
-    document.getElementById(
-      "composeMessage"
-    );
-
-
-  if (to) {
-    to.value = "";
-  }
-
-  if (subject) {
-    subject.value = "";
-  }
-
-  if (message) {
-    message.value = "";
-  }
+  if (to) to.value = "";
+  if (subject) subject.value = "";
+  if (message) message.value = "";
 
 }
 
+function markComposeAsSent() {
+
+  suppressDraftSave = true;
+
+  const compose = document.getElementById("composeWindow");
+
+  return compose ? (compose.dataset.draftId || "") : "";
+}
+
+async function removeDraftAfterSend(draftId) {
+
+  if (!draftId) {
+    return;
+  }
+
+  const result =
+    await supabaseClient
+      .from("drafts")
+      .delete()
+      .eq("id", draftId)
+      .eq("user_id", currentUser.id);
+
+  if (result.error) {
+    console.error("Draft cleanup error:", result.error);
+  }
+}
 
 function minimizeCompose() {
 
@@ -2200,13 +2507,17 @@ async function sendEmail() {
       }
 
 
+      const draftId = markComposeAsSent();
+
+      await removeDraftAfterSend(draftId);
+
       showToast(
         "Reply sent successfully."
       );
 
+      await closeCompose();
 
-      closeCompose();
-
+      suppressDraftSave = false;
 
       await loadEmails();
 
@@ -2312,13 +2623,17 @@ async function sendEmail() {
     }
 
 
+    const draftId = markComposeAsSent();
+
+    await removeDraftAfterSend(draftId);
+
     showToast(
       "Message sent successfully."
     );
 
+    await closeCompose();
 
-    closeCompose();
-
+    suppressDraftSave = false;
 
     await loadEmails();
 
