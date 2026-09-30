@@ -3306,6 +3306,8 @@ async function sendEmail() {
       ? messageInput.value.trim()
       : "";
 
+  const filesToSend = selectedAttachments.slice();
+
 
   const compose =
     document.getElementById(
