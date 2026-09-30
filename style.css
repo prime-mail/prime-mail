@@ -742,6 +742,38 @@ button {
   color: var(--text-secondary);
 }
 
+.label-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.label-row .label-item {
+  flex: 1;
+}
+
+.label-delete-button {
+  width: 26px;
+  height: 28px;
+  flex-shrink: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 6px;
+  font-size: 16px;
+}
+
+.label-delete-button:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.label-item span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .label-item {
   width: 100%;
 
@@ -786,6 +818,89 @@ button {
 
 .important {
   background: #e0a126;
+}
+
+.label-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.label-picker {
+  width: 100%;
+  max-width: 420px;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+
+.label-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 15px;
+}
+
+.label-picker-header button {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 7px;
+  font-size: 24px;
+}
+
+.label-picker-header button:hover {
+  background: var(--hover);
+}
+
+.label-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.label-picker-item:hover {
+  background: var(--hover);
+}
+
+.label-picker-item input {
+  width: 16px;
+  height: 16px;
+}
+
+.label-picker-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 15px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.label-picker-footer button {
+  padding: 9px 14px;
+  border-radius: 8px;
+}
+
+.label-picker-footer button:first-child {
+  background: var(--hover);
+  color: var(--text);
 }
 
 .storage-box {
@@ -990,6 +1105,24 @@ button {
 
 .star-button.starred {
   color: #e5a800;
+}
+
+.email-label-button {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 7px;
+  font-size: 13px;
+  opacity: 0.55;
+}
+
+.email-label-button:hover,
+.email-label-button.has-labels {
+  background: var(--hover);
+  color: var(--text);
+  opacity: 1;
 }
 
 .email-sender {
