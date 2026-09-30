@@ -744,24 +744,10 @@ async function loadEmails() {
     previous deployed app.js.
   */
 
-  const filter =
-    "sender_id.eq." +
-    currentUser.id +
-    ",recipient_id.eq." +
-    currentUser.id;
-
-
   const result =
-    await supabaseClient
-      .from("emails")
-      .select("*")
-      .or(filter)
-      .order(
-        "created_at",
-        {
-          ascending: false
-        }
-      );
+    await supabaseClient.rpc(
+      "get_my_emails"
+    );
 
 
   if (result.error) {
@@ -823,6 +809,18 @@ function convertDatabaseEmail(
   }
 
 
+  const username =
+    isSender
+      ? (row.recipient_username || "")
+      : (row.sender_username || "");
+
+
+  const mailIdentity =
+    username
+      ? username + "@prime-mail.primemail.workers.dev"
+      : "Prime Mail User";
+
+
   return {
 
     id: row.id,
@@ -830,17 +828,13 @@ function convertDatabaseEmail(
     folder: folder,
 
     sender:
-      isSender
-        ? "You"
-        : "Prime Mail User",
+      mailIdentity,
 
     email:
-      isSender
-        ? (
-            currentUser.email ||
-            ""
-          )
-        : "Prime Mail User",
+      mailIdentity,
+
+    senderUsername:
+      username,
 
     subject:
       row.subject ||
