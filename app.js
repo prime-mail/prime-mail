@@ -2081,6 +2081,108 @@ async function sendEmail() {
       : "";
 
 
+  const compose =
+    document.getElementById(
+      "composeWindow"
+    );
+
+
+  const replyId =
+    compose
+      ? compose.dataset.replyId
+      : "";
+
+
+  /* =====================================================
+     REPLY MESSAGE
+  ===================================================== */
+
+  if (replyId) {
+
+    if (!message) {
+
+      showToast(
+        "Please write a reply."
+      );
+
+      return;
+    }
+
+
+    try {
+
+      const result =
+        await supabaseClient.rpc(
+          "reply_prime_mail",
+          {
+            p_email_id:
+              replyId,
+
+            p_body:
+              message
+          }
+        );
+
+
+      if (result.error) {
+
+        console.error(
+          "Reply error:",
+          result.error
+        );
+
+        showToast(
+          result.error.message
+        );
+
+        return;
+      }
+
+
+      if (compose) {
+
+        delete compose.dataset.replyId;
+
+      }
+
+
+      showToast(
+        "Reply sent successfully."
+      );
+
+
+      closeCompose();
+
+
+      await loadEmails();
+
+
+      return;
+
+
+    } catch (error) {
+
+      console.error(
+        "Unexpected reply error:",
+        error
+      );
+
+
+      showToast(
+        "Reply could not be sent."
+      );
+
+      return;
+
+    }
+
+  }
+
+
+  /* =====================================================
+     NORMAL NEW MESSAGE
+  ===================================================== */
+
   if (!to) {
 
     showToast(
@@ -2091,7 +2193,9 @@ async function sendEmail() {
   }
 
 
-  if (!/^[a-z0-9_]{3,30}$/.test(to)) {
+  if (
+    !/^[a-z0-9_]{3,30}$/.test(to)
+  ) {
 
     showToast(
       "Please enter a valid Prime Mail username."
@@ -2127,9 +2231,14 @@ async function sendEmail() {
       await supabaseClient.rpc(
         "send_prime_mail",
         {
-          p_recipient_username: to,
-          p_subject: subject,
-          p_body: message
+          p_recipient_username:
+            to,
+
+          p_subject:
+            subject,
+
+          p_body:
+            message
         }
       );
 
@@ -2156,6 +2265,7 @@ async function sendEmail() {
 
     closeCompose();
 
+
     await loadEmails();
 
 
@@ -2166,6 +2276,7 @@ async function sendEmail() {
       error
     );
 
+
     showToast(
       "Message could not be sent."
     );
@@ -2173,7 +2284,6 @@ async function sendEmail() {
   }
 
 }
-
 /* =========================================================
    PROFILE UI
 ========================================================= */
