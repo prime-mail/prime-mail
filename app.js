@@ -1357,74 +1357,281 @@ function searchMail() {
    OPEN EMAIL
 ========================================================= */
 
-async function openEmail(
-  id
-) {
+function showMessageViewer(email) {
 
-  const email =
-    emails.find(
-      function (item) {
+  const oldViewer =
+    document.getElementById("primeMailMessageViewer");
 
-        return item.id === id;
+  if (oldViewer) {
+    oldViewer.remove();
+  }
 
+  const viewer =
+    document.createElement("div");
+
+  viewer.id =
+    "primeMailMessageViewer";
+
+  viewer.style.position = "fixed";
+  viewer.style.inset = "0";
+  viewer.style.background = "rgba(0,0,0,0.55)";
+  viewer.style.zIndex = "99999";
+  viewer.style.display = "flex";
+  viewer.style.alignItems = "center";
+  viewer.style.justifyContent = "center";
+  viewer.style.padding = "20px";
+  viewer.style.boxSizing = "border-box";
+
+  const box =
+    document.createElement("div");
+
+  box.style.width = "100%";
+  box.style.maxWidth = "760px";
+  box.style.maxHeight = "85vh";
+  box.style.overflowY = "auto";
+  box.style.background = "#ffffff";
+  box.style.borderRadius = "16px";
+  box.style.padding = "24px";
+  box.style.boxSizing = "border-box";
+  box.style.boxShadow = "0 20px 60px rgba(0,0,0,0.25)";
+
+  const header =
+    document.createElement("div");
+
+  header.style.display = "flex";
+  header.style.justifyContent = "space-between";
+  header.style.alignItems = "center";
+  header.style.gap = "15px";
+  header.style.marginBottom = "20px";
+
+  const title =
+    document.createElement("h2");
+
+  title.textContent =
+    email.subject || "(No subject)";
+
+  title.style.margin = "0";
+  title.style.wordBreak = "break-word";
+
+  const closeButton =
+    document.createElement("button");
+
+  closeButton.textContent = "×";
+  closeButton.style.border = "none";
+  closeButton.style.background = "transparent";
+  closeButton.style.fontSize = "32px";
+  closeButton.style.cursor = "pointer";
+  closeButton.style.lineHeight = "1";
+
+  closeButton.onclick =
+    function () {
+      viewer.remove();
+    };
+
+  header.appendChild(title);
+  header.appendChild(closeButton);
+
+  const info =
+    document.createElement("div");
+
+  info.style.padding = "14px";
+  info.style.background = "#f5f7fa";
+  info.style.borderRadius = "10px";
+  info.style.marginBottom = "20px";
+
+  const from =
+    document.createElement("div");
+
+  from.innerHTML =
+    "<strong>From:</strong> ";
+
+  const fromText =
+    document.createElement("span");
+
+  fromText.textContent =
+    email.sender || "Prime Mail User";
+
+  from.appendChild(fromText);
+
+  const date =
+    document.createElement("div");
+
+  date.style.marginTop = "6px";
+
+  date.innerHTML =
+    "<strong>Date:</strong> ";
+
+  const dateText =
+    document.createElement("span");
+
+  dateText.textContent =
+    email.date || "";
+
+  date.appendChild(dateText);
+
+  info.appendChild(from);
+  info.appendChild(date);
+
+  const body =
+    document.createElement("div");
+
+  body.textContent =
+    email.body || email.preview || "";
+
+  body.style.whiteSpace = "pre-wrap";
+  body.style.wordBreak = "break-word";
+  body.style.lineHeight = "1.7";
+  body.style.fontSize = "16px";
+  body.style.padding = "10px 2px";
+  body.style.minHeight = "120px";
+
+  const buttons =
+    document.createElement("div");
+
+  buttons.style.display = "flex";
+  buttons.style.gap = "10px";
+  buttons.style.marginTop = "25px";
+  buttons.style.flexWrap = "wrap";
+
+  const closeBottom =
+    document.createElement("button");
+
+  closeBottom.textContent =
+    "Close";
+
+  closeBottom.style.padding =
+    "10px 18px";
+
+  closeBottom.style.borderRadius =
+    "8px";
+
+  closeBottom.style.border =
+    "1px solid #ccc";
+
+  closeBottom.style.background =
+    "#ffffff";
+
+  closeBottom.style.cursor =
+    "pointer";
+
+  closeBottom.onclick =
+    function () {
+      viewer.remove();
+    };
+
+  buttons.appendChild(closeBottom);
+
+  const isSent =
+    email.folder === "sent" ||
+    email.isSender === true;
+
+  if (!isSent) {
+
+    const replyButton =
+      document.createElement("button");
+
+    replyButton.textContent =
+      "↩ Reply";
+
+    replyButton.style.padding =
+      "10px 18px";
+
+    replyButton.style.borderRadius =
+      "8px";
+
+    replyButton.style.border =
+      "none";
+
+    replyButton.style.background =
+      "#2563eb";
+
+    replyButton.style.color =
+      "#ffffff";
+
+    replyButton.style.cursor =
+      "pointer";
+
+    replyButton.onclick =
+      function () {
+
+        viewer.remove();
+
+        replyToMessage(email);
+
+      };
+
+    buttons.appendChild(replyButton);
+  }
+
+  box.appendChild(header);
+  box.appendChild(info);
+  box.appendChild(body);
+  box.appendChild(buttons);
+
+  viewer.appendChild(box);
+
+  viewer.addEventListener(
+    "click",
+    function (event) {
+
+      if (event.target === viewer) {
+        viewer.remove();
       }
-    );
 
-
-  if (!email) {
-    return;
-  }
-
-
-  if (
-    email.unread &&
-    currentUser
-  ) {
-
-    const result =
-      await supabaseClient
-        .from("emails")
-        .update({
-          is_read: true
-        })
-        .eq(
-          "id",
-          id
-        )
-        .eq(
-          "recipient_id",
-          currentUser.id
-        );
-
-
-    if (result.error) {
-
-      console.error(
-        result.error
-      );
     }
-
-
-    email.unread =
-      false;
-  }
-
-
-  /*
-    Current HTML does not contain a
-    full message viewer, so show the
-    subject for now.
-  */
-
-  showToast(
-    email.subject
   );
 
-
-  renderEmails();
+  document.body.appendChild(viewer);
 
 }
+function replyToMessage(email) {
 
+  const compose =
+    document.getElementById("composeModal") ||
+    document.getElementById("composeWindow");
+
+  if (typeof openCompose === "function") {
+    openCompose();
+  }
+
+  const toInput =
+    document.getElementById("composeTo");
+
+  const subjectInput =
+    document.getElementById("composeSubject");
+
+  const messageInput =
+    document.getElementById("composeMessage");
+
+  if (toInput) {
+    toInput.value =
+      email.senderUsername ||
+      email.sender ||
+      "";
+  }
+
+  if (subjectInput) {
+
+    const subject =
+      email.subject || "";
+
+    subjectInput.value =
+      /^re:/i.test(subject)
+        ? subject
+        : "Re: " + subject;
+  }
+
+  if (messageInput) {
+    messageInput.value = "";
+    messageInput.focus();
+  }
+
+  if (compose) {
+    compose.dataset.replyId =
+      email.id;
+  }
+
+}
 
 /* =========================================================
    STAR
