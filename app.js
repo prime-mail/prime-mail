@@ -2924,6 +2924,63 @@ function toggleSelectAll() {
    DELETE SELECTED
 ========================================================= */
 
+async function permanentlyDeleteEmail(emailId) {
+
+  if (!emailId || !currentUser || !supabaseClient) {
+    return false;
+  }
+
+  const attachmentResult =
+    await supabaseClient
+      .from("email_attachments")
+      .select("file_path")
+      .eq("email_id", emailId);
+
+  if (attachmentResult.error) {
+    console.error("Attachment lookup before permanent delete:", attachmentResult.error);
+    showToast(attachmentResult.error.message || "Could not delete the message.");
+    return false;
+  }
+
+  const paths =
+    (attachmentResult.data || [])
+      .map(function (item) {
+        return item.file_path;
+      })
+      .filter(Boolean);
+
+  if (paths.length) {
+    const storageResult =
+      await supabaseClient
+        .storage
+        .from("email-attachments")
+        .remove(paths);
+
+    if (storageResult.error) {
+      console.error("Attachment cleanup error:", storageResult.error);
+    }
+  }
+
+  const result =
+    await supabaseClient
+      .from("emails")
+      .delete()
+      .eq("id", emailId);
+
+  if (result.error) {
+    console.error("Permanent email delete error:", result.error);
+    showToast(result.error.message || "Could not permanently delete the message.");
+    return false;
+  }
+
+  return true;
+}
+
+
+/* =========================================================
+   DELETE SELECTED
+========================================================= */
+
 async function deleteSelected() {
 
   const selected =
@@ -2934,10 +2991,7 @@ async function deleteSelected() {
     );
 
 
-  if (
-    selected.length ===
-    0
-  ) {
+  if (selected.length === 0) {
 
     showToast(
       "Select an email first."
@@ -2947,17 +3001,14 @@ async function deleteSelected() {
   }
 
 
-  for (
-    let i = 0;
-    i < selected.length;
-    i++
-  ) {
+  let permanentCount = 0;
+  let movedToTrashCount = 0;
+
+
+  for (let i = 0; i < selected.length; i++) {
 
     const row =
-      selected[i]
-        .closest(
-          ".email-row"
-        );
+      selected[i].closest(".email-row");
 
 
     if (!row) {
@@ -2968,58 +3019,92 @@ async function deleteSelected() {
     const id =
       row.dataset.id;
 
+
     const selectedEmail =
       emails.find(function (email) {
         return email.id === id;
       });
+
 
     if (
       selectedEmail &&
       selectedEmail.folder === "drafts"
     ) {
 
-      await supabaseClient
-        .from("drafts")
-        .delete()
-        .eq("id", id)
-        .eq("user_id", currentUser.id);
+      const draftResult =
+        await supabaseClient
+          .from("drafts")
+          .delete()
+          .eq("id", id)
+          .eq("user_id", currentUser.id);
+
+      if (!draftResult.error) {
+        permanentCount++;
+      }
+
+    } else if (
+      selectedEmail &&
+      selectedEmail.folder === "trash"
+    ) {
+
+      const deleted =
+        await permanentlyDeleteEmail(id);
+
+      if (deleted) {
+        permanentCount++;
+      }
 
     } else {
 
-      await supabaseClient
-        .from("emails")
-        .update({
-          mailbox_type:
-            "trash"
-        })
-        .eq(
-          "id",
-          id
-        );
+      const result =
+        await supabaseClient
+          .from("emails")
+          .update({
+            mailbox_type: "trash"
+          })
+          .eq("id", id);
 
+      if (!result.error) {
+        movedToTrashCount++;
+      }
     }
   }
 
 
   const master =
-    document.getElementById(
-      "selectAll"
-    );
+    document.getElementById("selectAll");
 
 
   if (master) {
-
-    master.checked =
-      false;
+    master.checked = false;
   }
 
 
   await loadEmails();
 
 
-  showToast(
-    "Message(s) moved to Trash."
-  );
+  if (permanentCount && movedToTrashCount) {
+
+    showToast(
+      permanentCount +
+      " message(s) permanently deleted; " +
+      movedToTrashCount +
+      " moved to Trash."
+    );
+
+  } else if (permanentCount) {
+
+    showToast(
+      permanentCount +
+      " message(s) permanently deleted."
+    );
+
+  } else {
+
+    showToast(
+      "Message(s) moved to Trash."
+    );
+  }
 
 }
 
