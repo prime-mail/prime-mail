@@ -788,6 +788,8 @@ async function loadEmails() {
 
   renderEmails();
 
+  await loadDrafts();
+
   updateCounts();
 
 }
