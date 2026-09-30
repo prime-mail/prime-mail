@@ -627,6 +627,11 @@
         placeholder="Write your message..."
       ></textarea>
 
+      <div
+        id="attachmentList"
+        class="attachment-list hidden"
+      ></div>
+
     </div>
 
 
@@ -641,15 +646,43 @@
 
       <div class="compose-tools">
 
-        <button title="Attachment">
+        <input
+          id="attachmentInput"
+          type="file"
+          multiple
+          style="display:none"
+          onchange="handleAttachmentSelection(event)"
+        >
+
+        <input
+          id="imageInput"
+          type="file"
+          accept="image/*"
+          multiple
+          style="display:none"
+          onchange="handleAttachmentSelection(event)"
+        >
+
+        <button
+          type="button"
+          title="Attach any file"
+          onclick="document.getElementById('attachmentInput').click()"
+        >
           📎
         </button>
 
-        <button title="Image">
+        <button
+          type="button"
+          title="Attach photos"
+          onclick="document.getElementById('imageInput').click()"
+        >
           ▧
         </button>
 
-        <button title="Formatting">
+        <button
+          type="button"
+          title="Formatting"
+        >
           A
         </button>
 
