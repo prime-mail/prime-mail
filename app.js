@@ -34,6 +34,7 @@ let composeMinimized = false;
 let emails = [];
 let drafts = [];
 let labels = [];
+let selectedAttachments = [];
 let draftSaveTimer = null;
 let suppressDraftSave = false;
 
@@ -774,6 +775,7 @@ async function loadEmails() {
 
   await loadDrafts();
   await loadLabels();
+  await loadEmailAttachments();
 
   renderEmails();
   updateCounts();
@@ -1127,6 +1129,248 @@ async function deleteCurrentDraft() {
   await loadEmails();
 
   showToast("Draft deleted.");
+}
+
+/* =========================================================
+   ATTACHMENTS
+========================================================= */
+
+function handleAttachmentSelection(event) {
+
+  const input = event.target;
+
+  if (!input || !input.files) {
+    return;
+  }
+
+  Array.from(input.files).forEach(function (file) {
+
+    const duplicate = selectedAttachments.some(function (item) {
+      return (
+        item.name === file.name &&
+        item.size === file.size &&
+        item.lastModified === file.lastModified
+      );
+    });
+
+    if (!duplicate) {
+      selectedAttachments.push(file);
+    }
+  });
+
+  input.value = "";
+  renderSelectedAttachments();
+}
+
+function renderSelectedAttachments() {
+
+  const list = document.getElementById("attachmentList");
+
+  if (!list) {
+    return;
+  }
+
+  list.innerHTML = "";
+
+  if (!selectedAttachments.length) {
+    list.classList.add("hidden");
+    return;
+  }
+
+  list.classList.remove("hidden");
+
+  selectedAttachments.forEach(function (file, index) {
+
+    const row = document.createElement("div");
+    row.className = "selected-attachment";
+
+    const icon = document.createElement("span");
+    icon.textContent = file.type && file.type.indexOf("image/") === 0
+      ? "🖼️"
+      : "📎";
+
+    const name = document.createElement("span");
+    name.className = "selected-attachment-name";
+    name.textContent = file.name + " (" + formatFileSize(file.size) + ")";
+    name.title = file.name;
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "×";
+    remove.title = "Remove attachment";
+
+    remove.onclick = function () {
+      selectedAttachments.splice(index, 1);
+      renderSelectedAttachments();
+    };
+
+    row.appendChild(icon);
+    row.appendChild(name);
+    row.appendChild(remove);
+    list.appendChild(row);
+  });
+}
+
+function formatFileSize(bytes) {
+
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "0 B";
+  }
+
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const index = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1
+  );
+
+  return (
+    bytes / Math.pow(1024, index)
+  ).toFixed(index === 0 ? 0 : 1) +
+    " " +
+    units[index];
+}
+
+function resetSelectedAttachments() {
+
+  selectedAttachments = [];
+  renderSelectedAttachments();
+
+}
+
+async function uploadEmailAttachments(emailId, files) {
+
+  if (!files || !files.length) {
+    return { success: true, uploaded: 0, failed: 0 };
+  }
+
+  let uploaded = 0;
+  let failed = 0;
+
+  for (let i = 0; i < files.length; i++) {
+
+    const file = files[i];
+
+    const safeName =
+      file.name
+        .replace(/[^a-zA-Z0-9._-]/g, "_")
+        .slice(0, 180) || "attachment";
+
+    const path =
+      emailId + "/" +
+      Date.now() + "_" +
+      Math.random().toString(36).slice(2) +
+      "_" +
+      safeName;
+
+    const uploadResult =
+      await supabaseClient
+        .storage
+        .from("email-attachments")
+        .upload(path, file, {
+          contentType: file.type || "application/octet-stream",
+          upsert: false
+        });
+
+    if (uploadResult.error) {
+      console.error("Attachment upload error:", uploadResult.error);
+      failed++;
+      continue;
+    }
+
+    const dbResult =
+      await supabaseClient
+        .from("email_attachments")
+        .insert({
+          email_id: emailId,
+          sender_id: currentUser.id,
+          file_name: file.name,
+          file_path: path,
+          content_type: file.type || "application/octet-stream",
+          size_bytes: file.size
+        });
+
+    if (dbResult.error) {
+
+      console.error("Attachment record error:", dbResult.error);
+
+      await supabaseClient
+        .storage
+        .from("email-attachments")
+        .remove([path]);
+
+      failed++;
+      continue;
+    }
+
+    uploaded++;
+  }
+
+  return {
+    success: failed === 0,
+    uploaded: uploaded,
+    failed: failed
+  };
+}
+
+async function loadEmailAttachments() {
+
+  if (!currentUser || !supabaseClient || !emails.length) {
+    return;
+  }
+
+  const result =
+    await supabaseClient
+      .from("email_attachments")
+      .select("*");
+
+  if (result.error) {
+    console.error("Attachment loading error:", result.error);
+    return;
+  }
+
+  const byEmail = {};
+
+  (result.data || []).forEach(function (item) {
+
+    if (!byEmail[item.email_id]) {
+      byEmail[item.email_id] = [];
+    }
+
+    byEmail[item.email_id].push(item);
+  });
+
+  emails.forEach(function (email) {
+    email.attachments = byEmail[email.id] || [];
+  });
+}
+
+function downloadEmailAttachment(attachment) {
+
+  if (!attachment || !supabaseClient) {
+    return;
+  }
+
+  supabaseClient
+    .storage
+    .from("email-attachments")
+    .createSignedUrl(attachment.file_path, 60)
+    .then(function (result) {
+
+      if (result.error) {
+        console.error("Attachment download error:", result.error);
+        showToast(result.error.message || "Could not open attachment.");
+        return;
+      }
+
+      const link = document.createElement("a");
+      link.href = result.data.signedUrl;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.download = attachment.file_name || "attachment";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    });
 }
 
 /* =========================================================
@@ -2009,6 +2253,13 @@ function renderEmails() {
         preview
       );
 
+      if (email.attachments && email.attachments.length) {
+        const attachmentMark = document.createElement("span");
+        attachmentMark.className = "email-attachment-mark";
+        attachmentMark.textContent = " 📎 " + email.attachments.length;
+        main.appendChild(attachmentMark);
+      }
+
 
       const date =
         document.createElement(
@@ -2377,6 +2628,46 @@ function showMessageViewer(email) {
   body.style.fontSize = "16px";
   body.style.padding = "10px 2px";
   body.style.minHeight = "120px";
+
+  if (email.attachments && email.attachments.length) {
+
+    const attachmentBox = document.createElement("div");
+    attachmentBox.className = "message-attachments";
+
+    const attachmentTitle = document.createElement("strong");
+    attachmentTitle.textContent =
+      "Attachments (" + email.attachments.length + ")";
+
+    attachmentBox.appendChild(attachmentTitle);
+
+    email.attachments.forEach(function (attachment) {
+
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "message-attachment";
+
+      const icon =
+        attachment.content_type &&
+        attachment.content_type.indexOf("image/") === 0
+          ? "🖼️"
+          : "📎";
+
+      item.textContent =
+        icon + " " +
+        attachment.file_name +
+        " (" +
+        formatFileSize(attachment.size_bytes) +
+        ")";
+
+      item.onclick = function () {
+        downloadEmailAttachment(attachment);
+      };
+
+      attachmentBox.appendChild(item);
+    });
+
+    box.appendChild(attachmentBox);
+  }
 
   const buttons =
     document.createElement("div");
@@ -2904,6 +3195,8 @@ function hideComposeWindow() {
   if (subject) subject.value = "";
   if (message) message.value = "";
 
+  resetSelectedAttachments();
+
 }
 
 function markComposeAsSent() {
@@ -3152,10 +3445,10 @@ async function sendEmail() {
   }
 
 
-  if (!message) {
+  if (!message && !filesToSend.length) {
 
     showToast(
-      "Please write a message."
+      "Please write a message or attach a file."
     );
 
     return;
@@ -3194,13 +3487,24 @@ async function sendEmail() {
       return;
     }
 
+    const sentEmailId = result.data;
+
+    const uploadResult =
+      await uploadEmailAttachments(
+        sentEmailId,
+        filesToSend
+      );
+
+    resetSelectedAttachments();
 
     const draftId = markComposeAsSent();
 
     await removeDraftAfterSend(draftId);
 
     showToast(
-      "Message sent successfully."
+      uploadResult.failed
+        ? "Message sent, but " + uploadResult.failed + " attachment(s) could not be uploaded."
+        : "Message sent successfully."
     );
 
     await closeCompose();
