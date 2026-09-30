@@ -1571,7 +1571,7 @@ async function deleteLabel(labelId) {
     return;
   }
 
-  if (!window.confirm("Delete the label "" + label.name + ""? Emails will not be deleted.")) {
+  if (!window.confirm('Delete the label "' + label.name + '"? Emails will not be deleted.')) {
     return;
   }
 
