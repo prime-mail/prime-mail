@@ -86,6 +86,7 @@ document.addEventListener(
 
     loadTheme();
     setupDraftAutosave();
+    setupSearchShortcuts();
 
     const ready =
       initializeSupabase();
@@ -922,8 +923,6 @@ function convertDraft(row) {
 
 }
 
-setupSearchShortcuts();
-
 function setupDraftAutosave() {
 
   ["composeTo", "composeSubject", "composeMessage"]
@@ -1312,54 +1311,69 @@ function renderEmails() {
     "";
 
 
-  let filtered =
-    emails.filter(
-      function (email) {
-
-        if (
-          currentFolder ===
-          "starred"
-        ) {
-
-          return email.starred;
-        }
-
-
-        return (
-          email.folder ===
-          currentFolder
-        );
-
-      }
-    );
-
+  /*
+    Search mode:
+    When the user types in Search Mail, search the
+    complete mailbox instead of only the open folder.
+    Without a search term, show the selected folder.
+  */
+  let filtered;
 
   if (searchTerm) {
 
+    const query =
+      searchTerm
+        .trim()
+        .toLowerCase();
+
     filtered =
-      filtered.filter(
+      emails.filter(
         function (email) {
 
           const content =
             (
-              email.sender +
+              email.sender || "" +
               " " +
-              email.email +
+              email.email || "" +
               " " +
-              email.subject +
+              email.subject || "" +
               " " +
-              email.preview +
+              email.preview || "" +
               " " +
-              (email.draftTo || "")
+              email.body || "" +
+              " " +
+              email.draftTo || "" +
+              " " +
+              email.id || ""
             ).toLowerCase();
 
-
-          return content.indexOf(
-            searchTerm.toLowerCase()
-          ) !== -1;
+          return content.indexOf(query) !== -1;
 
         }
       );
+
+  } else {
+
+    filtered =
+      emails.filter(
+        function (email) {
+
+          if (
+            currentFolder ===
+            "starred"
+          ) {
+
+            return email.starred;
+          }
+
+          return (
+            email.folder ===
+            currentFolder
+          );
+
+        }
+      );
+
   }
 
 
