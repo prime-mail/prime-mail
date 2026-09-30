@@ -195,7 +195,7 @@ async function login() {
   }
 
 
-  const emailInput =
+  const identifierInput =
     document.getElementById(
       "loginEmail"
     );
@@ -206,9 +206,9 @@ async function login() {
     );
 
 
-  const email =
-    emailInput
-      ? emailInput.value.trim()
+  const identifier =
+    identifierInput
+      ? identifierInput.value.trim().toLowerCase()
       : "";
 
   const password =
@@ -218,15 +218,36 @@ async function login() {
 
 
   if (
-    !email ||
+    !identifier ||
     !password
   ) {
 
     showToast(
-      "Please enter your email and password."
+      "Please enter your username/email and password."
     );
 
     return;
+  }
+
+
+  /*
+    If the user enters only a username,
+    convert it to the internal Prime Mail
+    Supabase Auth email.
+  */
+
+  let authEmail =
+    identifier;
+
+
+  if (
+    !identifier.includes("@")
+  ) {
+
+    authEmail =
+      identifier +
+      "@prime-mail.primemail.workers.dev";
+
   }
 
 
@@ -241,8 +262,13 @@ async function login() {
 
     const result =
       await supabaseClient.auth.signInWithPassword({
-        email: email,
-        password: password
+
+        email:
+          authEmail,
+
+        password:
+          password
+
       });
 
 
@@ -261,7 +287,7 @@ async function login() {
       );
 
       showToast(
-        result.error.message
+        "Invalid username/email or password."
       );
 
       return;
@@ -290,18 +316,20 @@ async function login() {
       "Sign in"
     );
 
+
     console.error(
       "Unexpected login error:",
       error
     );
 
+
     showToast(
       "Login failed. Please try again."
     );
+
   }
 
 }
-
 
 /* =========================================================
    SIGNUP
