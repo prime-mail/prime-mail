@@ -1860,7 +1860,7 @@ async function sendEmail() {
 
   const to =
     toInput
-      ? toInput.value.trim()
+      ? toInput.value.trim().toLowerCase()
       : "";
 
   const subject =
@@ -1877,7 +1877,17 @@ async function sendEmail() {
   if (!to) {
 
     showToast(
-      "Please enter a recipient."
+      "Please enter recipient username."
+    );
+
+    return;
+  }
+
+
+  if (!/^[a-z0-9_]{3,30}$/.test(to)) {
+
+    showToast(
+      "Please enter a valid Prime Mail username."
     );
 
     return;
@@ -1904,24 +1914,58 @@ async function sendEmail() {
   }
 
 
-  /*
-    IMPORTANT
+  try {
 
-    Public Gmail/Yahoo/etc. sending is not
-    connected yet.
+    const result =
+      await supabaseClient.rpc(
+        "send_prime_mail",
+        {
+          p_recipient_username: to,
+          p_subject: subject,
+          p_body: message
+        }
+      );
 
-    The current database has sender_id and
-    recipient_id, so a proper Prime Mail
-    internal messaging system can be connected
-    once recipient lookup is added.
-  */
 
-  showToast(
-    "Email sending will be connected next."
-  );
+    if (result.error) {
+
+      console.error(
+        "Send email error:",
+        result.error
+      );
+
+      showToast(
+        result.error.message
+      );
+
+      return;
+    }
+
+
+    showToast(
+      "Message sent successfully."
+    );
+
+
+    closeCompose();
+
+    await loadEmails();
+
+
+  } catch (error) {
+
+    console.error(
+      "Unexpected send error:",
+      error
+    );
+
+    showToast(
+      "Message could not be sent."
+    );
+
+  }
 
 }
-
 
 /* =========================================================
    PROFILE UI
