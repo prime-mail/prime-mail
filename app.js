@@ -1352,7 +1352,61 @@ function searchMail() {
 
 }
 
+async function openEmail(id) {
 
+  const email =
+    emails.find(
+      function (item) {
+        return item.id === id;
+      }
+    );
+
+  if (!email) {
+    console.error("Email not found:", id);
+    return;
+  }
+
+  /* Mark incoming message as read */
+
+  if (
+    email.unread &&
+    currentUser
+  ) {
+
+    const result =
+      await supabaseClient
+        .from("emails")
+        .update({
+          is_read: true
+        })
+        .eq(
+          "id",
+          id
+        )
+        .eq(
+          "recipient_id",
+          currentUser.id
+        );
+
+    if (result.error) {
+      console.error(
+        "Mark as read error:",
+        result.error
+      );
+    } else {
+      email.unread = false;
+    }
+  }
+
+  /* Open full message viewer */
+
+  showMessageViewer(email);
+
+  /* Refresh email list */
+
+  renderEmails();
+
+}
 /* =========================================================
    OPEN EMAIL
 ========================================================= */
