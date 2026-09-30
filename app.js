@@ -33,6 +33,7 @@ let composeMinimized = false;
 
 let emails = [];
 let drafts = [];
+let labels = [];
 let draftSaveTimer = null;
 let suppressDraftSave = false;
 
@@ -772,11 +773,9 @@ async function loadEmails() {
     );
 
   await loadDrafts();
+  await loadLabels();
 
   renderEmails();
-
-  await loadDrafts();
-
   updateCounts();
 
 }
@@ -864,7 +863,9 @@ function convertDatabaseEmail(
       ),
 
     attachment:
-      false
+      false,
+
+    labels: []
   };
 
 }
@@ -918,7 +919,8 @@ function convertDraft(row) {
     date: formatDate(row.updated_at || row.created_at),
     unread: false,
     starred: false,
-    attachment: false
+    attachment: false,
+    labels: []
   };
 
 }
@@ -1128,6 +1130,448 @@ async function deleteCurrentDraft() {
 }
 
 /* =========================================================
+   LABELS
+========================================================= */
+
+async function loadLabels() {
+
+  if (!currentUser || !supabaseClient) {
+    labels = [];
+    return;
+  }
+
+  const labelResult =
+    await supabaseClient
+      .from("labels")
+      .select("*")
+      .eq("user_id", currentUser.id)
+      .order("name", { ascending: true });
+
+  if (labelResult.error) {
+    console.error("Label loading error:", labelResult.error);
+    labels = [];
+    renderLabelSidebar();
+    return;
+  }
+
+  labels = labelResult.data || [];
+
+  const emailLabelResult =
+    await supabaseClient.rpc("get_my_email_labels");
+
+  if (emailLabelResult.error) {
+    console.error("Email label loading error:", emailLabelResult.error);
+  } else {
+    const byEmail = {};
+
+    (emailLabelResult.data || []).forEach(function (item) {
+      if (!byEmail[item.email_id]) {
+        byEmail[item.email_id] = [];
+      }
+
+      byEmail[item.email_id].push({
+        id: item.label_id,
+        name: item.label_name,
+        color: item.label_color
+      });
+    });
+
+    emails.forEach(function (email) {
+      email.labels = byEmail[email.id] || [];
+    });
+  }
+
+  renderLabelSidebar();
+}
+
+function renderLabelSidebar() {
+
+  const section = document.querySelector(".sidebar-section");
+
+  if (!section) {
+    return;
+  }
+
+  section.innerHTML = "";
+
+  const title = document.createElement("div");
+  title.className = "sidebar-title";
+
+  const titleText = document.createElement("span");
+  titleText.textContent = "Labels";
+
+  const addButton = document.createElement("button");
+  addButton.type = "button";
+  addButton.textContent = "＋";
+  addButton.title = "Create label";
+  addButton.onclick = addLabel;
+
+  title.appendChild(titleText);
+  title.appendChild(addButton);
+  section.appendChild(title);
+
+  labels.forEach(function (label) {
+
+    const row = document.createElement("div");
+    row.className = "label-row";
+
+    const openButton = document.createElement("button");
+    openButton.type = "button";
+    openButton.className = "label-item";
+    openButton.title = "Show emails with this label";
+
+    const dot = document.createElement("span");
+    dot.className = "label-dot";
+    dot.style.background = label.color || "#5b5bd6";
+
+    const name = document.createElement("span");
+    name.textContent = label.name;
+
+    openButton.appendChild(dot);
+    openButton.appendChild(name);
+
+    openButton.onclick = function () {
+      openLabel(label.id);
+    };
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "label-delete-button";
+    deleteButton.textContent = "×";
+    deleteButton.title = "Delete label";
+
+    deleteButton.onclick = function (event) {
+      event.stopPropagation();
+      deleteLabel(label.id);
+    };
+
+    row.appendChild(openButton);
+    row.appendChild(deleteButton);
+    section.appendChild(row);
+  });
+}
+
+async function addLabel() {
+
+  if (!currentUser || !supabaseClient) {
+    showToast("Please sign in first.");
+    return;
+  }
+
+  const name = window.prompt("Enter a label name:");
+
+  if (name === null) {
+    return;
+  }
+
+  const cleanName = name.trim();
+
+  if (!cleanName) {
+    showToast("Label name cannot be empty.");
+    return;
+  }
+
+  if (cleanName.length > 40) {
+    showToast("Label name must be 40 characters or less.");
+    return;
+  }
+
+  const color = window.prompt(
+    "Enter a color (example: #5b5bd6). Press Cancel for the default color:",
+    "#5b5bd6"
+  );
+
+  let cleanColor = (color || "#5b5bd6").trim();
+
+  if (!/^#[0-9a-fA-F]{6}$/.test(cleanColor)) {
+    cleanColor = "#5b5bd6";
+  }
+
+  const result =
+    await supabaseClient
+      .from("labels")
+      .insert({
+        user_id: currentUser.id,
+        name: cleanName,
+        color: cleanColor
+      })
+      .select()
+      .single();
+
+  if (result.error) {
+    if ((result.error.message || "").toLowerCase().includes("duplicate")) {
+      showToast("That label already exists.");
+    } else {
+      console.error("Label creation error:", result.error);
+      showToast(result.error.message || "Could not create label.");
+    }
+    return;
+  }
+
+  labels.push(result.data);
+  labels.sort(function (a, b) {
+    return a.name.localeCompare(b.name);
+  });
+
+  renderLabelSidebar();
+  showToast("Label created: " + result.data.name);
+}
+
+async function deleteLabel(labelId) {
+
+  const label = labels.find(function (item) {
+    return item.id === labelId;
+  });
+
+  if (!label) {
+    return;
+  }
+
+  if (!window.confirm("Delete the label "" + label.name + ""? Emails will not be deleted.")) {
+    return;
+  }
+
+  const result =
+    await supabaseClient
+      .from("labels")
+      .delete()
+      .eq("id", labelId)
+      .eq("user_id", currentUser.id);
+
+  if (result.error) {
+    console.error("Label delete error:", result.error);
+    showToast(result.error.message || "Could not delete label.");
+    return;
+  }
+
+  labels =
+    labels.filter(function (item) {
+      return item.id !== labelId;
+    });
+
+  emails.forEach(function (email) {
+    email.labels =
+      (email.labels || []).filter(function (item) {
+        return item.id !== labelId;
+      });
+  });
+
+  if (currentFolder === "label:" + labelId) {
+    currentFolder = "inbox";
+    updateFolderHeader();
+  }
+
+  renderLabelSidebar();
+  renderEmails();
+  showToast("Label deleted.");
+}
+
+function openLabel(labelId) {
+
+  const label = labels.find(function (item) {
+    return item.id === labelId;
+  });
+
+  if (!label) {
+    return;
+  }
+
+  currentFolder = "label:" + labelId;
+  searchTerm = "";
+
+  const searchInput = document.getElementById("searchInput");
+
+  if (searchInput) {
+    searchInput.value = "";
+  }
+
+  document.querySelectorAll(".nav-item").forEach(function (button) {
+    button.classList.remove("active");
+  });
+
+  updateFolderHeader();
+  renderEmails();
+  closeMobileSidebar();
+}
+
+async function manageEmailLabels(emailId) {
+
+  const email = emails.find(function (item) {
+    return item.id === emailId;
+  });
+
+  if (!email || email.folder === "drafts") {
+    return;
+  }
+
+  const old = document.getElementById("primeMailLabelPicker");
+
+  if (old) {
+    old.remove();
+  }
+
+  const overlay = document.createElement("div");
+  overlay.id = "primeMailLabelPicker";
+  overlay.className = "label-picker-overlay";
+
+  const box = document.createElement("div");
+  box.className = "label-picker";
+
+  const header = document.createElement("div");
+  header.className = "label-picker-header";
+
+  const title = document.createElement("strong");
+  title.textContent = "Labels";
+
+  const close = document.createElement("button");
+  close.type = "button";
+  close.textContent = "×";
+  close.onclick = function () {
+    overlay.remove();
+  };
+
+  header.appendChild(title);
+  header.appendChild(close);
+  box.appendChild(header);
+
+  if (labels.length === 0) {
+    const empty = document.createElement("p");
+    empty.textContent = "No labels yet. Create one from the sidebar.";
+    box.appendChild(empty);
+  }
+
+  labels.forEach(function (label) {
+
+    const item = document.createElement("label");
+    item.className = "label-picker-item";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.dataset.labelId = label.id;
+
+    const current = (email.labels || []).some(function (item) {
+      return item.id === label.id;
+    });
+
+    checkbox.checked = current;
+
+    const dot = document.createElement("span");
+    dot.className = "label-dot";
+    dot.style.background = label.color || "#5b5bd6";
+
+    const text = document.createElement("span");
+    text.textContent = label.name;
+
+    item.appendChild(checkbox);
+    item.appendChild(dot);
+    item.appendChild(text);
+    box.appendChild(item);
+  });
+
+  const footer = document.createElement("div");
+  footer.className = "label-picker-footer";
+
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.textContent = "Cancel";
+  cancel.onclick = function () {
+    overlay.remove();
+  };
+
+  const save = document.createElement("button");
+  save.type = "button";
+  save.className = "primary-button";
+  save.textContent = "Save labels";
+
+  save.onclick = async function () {
+
+    save.disabled = true;
+
+    const checkedIds =
+      Array.from(
+        box.querySelectorAll("input[type='checkbox']")
+      )
+      .filter(function (checkbox) {
+        return checkbox.checked;
+      })
+      .map(function (checkbox) {
+        return checkbox.dataset.labelId;
+      });
+
+    const existingIds =
+      (email.labels || []).map(function (item) {
+        return item.id;
+      });
+
+    const toAdd =
+      checkedIds.filter(function (id) {
+        return existingIds.indexOf(id) === -1;
+      });
+
+    const toRemove =
+      existingIds.filter(function (id) {
+        return checkedIds.indexOf(id) === -1;
+      });
+
+    for (let i = 0; i < toAdd.length; i++) {
+      const addResult =
+        await supabaseClient
+          .from("email_labels")
+          .insert({
+            email_id: emailId,
+            label_id: toAdd[i]
+          });
+
+      if (addResult.error) {
+        console.error("Add email label error:", addResult.error);
+        showToast(addResult.error.message || "Could not add label.");
+        save.disabled = false;
+        return;
+      }
+    }
+
+    for (let i = 0; i < toRemove.length; i++) {
+      const removeResult =
+        await supabaseClient
+          .from("email_labels")
+          .delete()
+          .eq("email_id", emailId)
+          .eq("label_id", toRemove[i]);
+
+      if (removeResult.error) {
+        console.error("Remove email label error:", removeResult.error);
+        showToast(removeResult.error.message || "Could not remove label.");
+        save.disabled = false;
+        return;
+      }
+    }
+
+    email.labels =
+      labels.filter(function (label) {
+        return checkedIds.indexOf(label.id) !== -1;
+      });
+
+    overlay.remove();
+    renderEmails();
+    showToast("Labels updated.");
+  };
+
+  footer.appendChild(cancel);
+  footer.appendChild(save);
+  box.appendChild(footer);
+
+  overlay.appendChild(box);
+
+  overlay.addEventListener("click", function (event) {
+    if (event.target === overlay) {
+      overlay.remove();
+    }
+  });
+
+  document.body.appendChild(overlay);
+}
+
+/* =========================================================
    OPEN FOLDER
 ========================================================= */
 
@@ -1244,6 +1688,22 @@ function updateFolderHeader() {
     ]
 
   };
+
+  if (currentFolder.indexOf("label:") === 0) {
+
+    const labelId = currentFolder.slice(6);
+
+    const label = labels.find(function (item) {
+      return item.id === labelId;
+    });
+
+    if (label) {
+      titles[currentFolder] = [
+        label.name,
+        "Messages with this label"
+      ];
+    }
+  }
 
 
   const data =
@@ -1364,6 +1824,18 @@ function renderEmails() {
           ) {
 
             return email.starred;
+          }
+
+          if (
+            currentFolder.indexOf("label:") === 0
+          ) {
+
+            const labelId =
+              currentFolder.slice(6);
+
+            return (email.labels || []).some(function (label) {
+              return label.id === labelId;
+            });
           }
 
           return (
@@ -1550,12 +2022,33 @@ function renderEmails() {
         email.date;
 
 
+      const labelButton =
+        document.createElement("button");
+
+      labelButton.type = "button";
+      labelButton.className = "email-label-button";
+      labelButton.textContent = "🏷";
+      labelButton.title = "Manage labels";
+
+      if (email.labels && email.labels.length) {
+        labelButton.classList.add("has-labels");
+      }
+
+      labelButton.addEventListener("click", function (event) {
+        event.stopPropagation();
+        manageEmailLabels(email.id);
+      });
+
       row.appendChild(
         checkbox
       );
 
       row.appendChild(
         star
+      );
+
+      row.appendChild(
+        labelButton
       );
 
       row.appendChild(
