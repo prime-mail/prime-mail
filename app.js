@@ -4540,7 +4540,7 @@ function linkifyPlainText(text) {
       .replace(/'/g, "&#039;");
 
   return escaped.replace(
-    /(https?:\\/\\/[^\\s<]+)/g,
+    /(https?:\/\/[^\s<]+)/g,
     function (url) {
       const cleanUrl =
         url.replace(/[),.!?]+$/, "");
