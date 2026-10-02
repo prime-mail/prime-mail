@@ -4313,14 +4313,87 @@ document.addEventListener(
    SETTINGS
 ========================================================= */
 
+function ensureSettingsModal() {
+  let modal = document.getElementById("settingsModal");
+  if (modal) return modal;
+
+  modal = document.createElement("div");
+  modal.id = "settingsModal";
+  modal.className = "settings-modal hidden";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.setAttribute("aria-labelledby", "settingsTitle");
+
+  modal.innerHTML = `
+    <div class="settings-backdrop" onclick="closeSettings()"></div>
+    <div class="settings-panel">
+      <div class="settings-header">
+        <div>
+          <h2 id="settingsTitle">Settings</h2>
+          <p>Manage your Prime Mail account and preferences.</p>
+        </div>
+        <button type="button" class="icon-button" onclick="closeSettings()" aria-label="Close settings">×</button>
+      </div>
+      <div class="settings-layout">
+        <nav class="settings-nav">
+          <button type="button" class="settings-nav-item active" data-settings-tab="general" onclick="openSettingsTab('general')">General</button>
+          <button type="button" class="settings-nav-item" data-settings-tab="account" onclick="openSettingsTab('account')">Account</button>
+          <button type="button" class="settings-nav-item" data-settings-tab="security" onclick="openSettingsTab('security')">Security</button>
+          <button type="button" class="settings-nav-item" data-settings-tab="appearance" onclick="openSettingsTab('appearance')">Appearance</button>
+        </nav>
+        <div class="settings-content">
+          <section class="settings-tab" data-settings-panel="general">
+            <h3>General</h3>
+            <p class="settings-muted">Update the name people see in your Prime Mail profile.</p>
+            <label for="settingsFullName">Full name</label>
+            <input id="settingsFullName" type="text" maxlength="80" placeholder="Your name">
+            <label class="settings-check"><input id="settingsSaveSent" type="checkbox" checked> Keep sent messages in Sent</label>
+            <button type="button" class="primary-button" onclick="saveGeneralSettings()">Save changes</button>
+          </section>
+          <section class="settings-tab hidden" data-settings-panel="account">
+            <h3>My account</h3>
+            <div class="account-info-card">
+              <div><span>Name</span><strong id="settingsAccountName">-</strong></div>
+              <div><span>Username</span><strong id="settingsAccountUsername">-</strong></div>
+              <div><span>Prime Mail address</span><strong id="settingsAccountEmail">-</strong></div>
+              <div><span>Member since</span><strong id="settingsAccountCreated">-</strong></div>
+            </div>
+            <div class="danger-zone">
+              <h4>Delete account</h4>
+              <p>Deleting your account permanently removes your profile, mailbox, drafts, labels, attachments and Prime Mail messages. This cannot be undone.</p>
+              <button type="button" class="danger-button" onclick="deleteMyAccount()">Delete my account</button>
+            </div>
+          </section>
+          <section class="settings-tab hidden" data-settings-panel="security">
+            <h3>Security</h3>
+            <p class="settings-muted">Change your password or sign out of all active sessions.</p>
+            <label for="newPassword">New password</label>
+            <input id="newPassword" type="password" minlength="6" autocomplete="new-password" placeholder="At least 6 characters">
+            <label for="confirmPassword">Confirm new password</label>
+            <input id="confirmPassword" type="password" minlength="6" autocomplete="new-password" placeholder="Repeat the password">
+            <button type="button" class="primary-button" onclick="changePassword()">Change password</button>
+            <button type="button" class="secondary-button" onclick="signOutEverywhere()">Sign out of all devices</button>
+          </section>
+          <section class="settings-tab hidden" data-settings-panel="appearance">
+            <h3>Appearance</h3>
+            <p class="settings-muted">Choose how Prime Mail looks on this device.</p>
+            <label class="settings-check"><input id="settingsDarkMode" type="checkbox" onchange="setThemeFromSettings(this.checked)"> Dark mode</label>
+          </section>
+        </div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+  return modal;
+}
+
 function showSettings() {
   const menu = document.getElementById("profileMenu");
   if (menu) menu.classList.add("hidden");
 
+  const modal = ensureSettingsModal();
   populateSettings();
   openSettingsTab("general");
-
-  const modal = document.getElementById("settingsModal");
   if (modal) modal.classList.remove("hidden");
 }
 
@@ -4333,10 +4406,9 @@ function showAccount() {
   const menu = document.getElementById("profileMenu");
   if (menu) menu.classList.add("hidden");
 
+  const modal = ensureSettingsModal();
   populateSettings();
   openSettingsTab("account");
-
-  const modal = document.getElementById("settingsModal");
   if (modal) modal.classList.remove("hidden");
 }
 
