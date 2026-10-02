@@ -4118,8 +4118,10 @@ function showLogin() {
 
 
 /* =========================================================
-   FORGOT PASSWORD / RECOVERY
+   PASSWORD RECOVERY — EMAIL CODE FLOW
 ========================================================= */
+
+const RECOVERY_FUNCTION = "prime-mail-password-recovery";
 
 function ensureRecoveryModal() {
   let modal = document.getElementById("recoveryModal");
@@ -4134,17 +4136,30 @@ function ensureRecoveryModal() {
       <div class="settings-header">
         <div>
           <h2>Recover your password</h2>
-          <p>Enter your Prime Mail username and the recovery email you added.</p>
+          <p>Enter the verified recovery email connected to your Prime Mail account.</p>
         </div>
         <button type="button" class="icon-button" onclick="closeRecoveryModal()">×</button>
       </div>
       <div class="settings-body">
-        <label for="recoveryUsername">Prime Mail username</label>
-        <input id="recoveryUsername" type="text" autocomplete="username" placeholder="yourusername">
         <label for="recoveryAddress">Recovery email</label>
-        <input id="recoveryAddress" type="email" autocomplete="email" placeholder="your-other-email@example.com">
+        <input id="recoveryAddress" type="email" autocomplete="email" placeholder="your-email@example.com">
+
+        <button id="recoverySendCodeButton" type="button" class="primary-button full-width" onclick="sendPasswordRecoveryCode()">Send code</button>
+
+        <div id="recoveryCodeArea" class="hidden">
+          <label for="recoveryCode">6-digit code</label>
+          <input id="recoveryCode" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="Enter the code">
+
+          <label for="recoveryNewPassword">New password</label>
+          <input id="recoveryNewPassword" type="password" minlength="6" autocomplete="new-password" placeholder="At least 6 characters">
+
+          <label for="recoveryConfirmPassword">Confirm new password</label>
+          <input id="recoveryConfirmPassword" type="password" minlength="6" autocomplete="new-password" placeholder="Repeat the password">
+
+          <button id="recoveryCompleteButton" type="button" class="primary-button full-width" onclick="completePasswordRecovery()">Verify code & change password</button>
+        </div>
+
         <p id="recoveryRequestStatus" class="settings-status"></p>
-        <button id="recoveryRequestButton" type="button" class="primary-button full-width" onclick="requestPasswordRecovery()">Send recovery link</button>
         <button type="button" class="secondary-button full-width" onclick="closeRecoveryModal()">Cancel</button>
       </div>
     </div>`;
@@ -4154,17 +4169,21 @@ function ensureRecoveryModal() {
 
 function showForgotPassword() {
   const modal = ensureRecoveryModal();
-  const loginInput = document.getElementById("loginEmail");
-  const usernameInput = document.getElementById("recoveryUsername");
+  const address = document.getElementById("recoveryAddress");
+  const area = document.getElementById("recoveryCodeArea");
+  const status = document.getElementById("recoveryRequestStatus");
 
-  if (loginInput && usernameInput && loginInput.value.trim() && !loginInput.value.includes("@")) {
-    usernameInput.value = loginInput.value.trim().toLowerCase();
+  if (address) address.value = "";
+  if (area) area.classList.add("hidden");
+  if (status) {
+    status.textContent = "";
+    status.className = "settings-status";
   }
 
   modal.classList.remove("hidden");
+
   setTimeout(function() {
-    const input = document.getElementById("recoveryUsername");
-    if (input) input.focus();
+    if (address) address.focus();
   }, 50);
 }
 
@@ -4173,144 +4192,93 @@ function closeRecoveryModal() {
   if (modal) modal.classList.add("hidden");
 }
 
-async function requestPasswordRecovery() {
-  const usernameInput = document.getElementById("recoveryUsername");
+async function sendPasswordRecoveryCode() {
   const emailInput = document.getElementById("recoveryAddress");
-  const button = document.getElementById("recoveryRequestButton");
+  const button = document.getElementById("recoverySendCodeButton");
   const status = document.getElementById("recoveryRequestStatus");
-
-  const username = usernameInput ? usernameInput.value.trim().toLowerCase().replace(/^@/, "") : "";
   const recoveryEmail = emailInput ? emailInput.value.trim().toLowerCase() : "";
 
-  if (!username || !recoveryEmail) {
-    showToast("Enter your Prime Mail username and recovery email.");
-    return;
-  }
-
-  if (!/^[a-z0-9_]{3,30}$/.test(username)) {
-    showToast("Please enter a valid Prime Mail username.");
-    return;
-  }
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recoveryEmail)) {
-    showToast("Please enter a valid recovery email.");
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recoveryEmail)) {
+    showToast("Please enter your verified recovery email.");
     return;
   }
 
   if (button) {
     button.disabled = true;
-    button.textContent = "Sending...";
+    button.textContent = "Sending code...";
   }
 
   try {
-    const result = await supabaseClient.functions.invoke("prime-mail-password-recovery", {
+    const result = await supabaseClient.functions.invoke(RECOVERY_FUNCTION, {
       body: {
-        action: "request",
-        username: username,
+        action: "request_password_recovery",
         recoveryEmail: recoveryEmail
       }
     });
 
     if (result.error) {
-      console.error("Recovery request error:", result.error);
-      let message = result.error.message || "Could not send recovery link.";
+      console.error("Password recovery code error:", result.error);
+      let message = result.error.message || "Could not send recovery code.";
       try {
         if (result.error.context && typeof result.error.context.json === "function") {
           const details = await result.error.context.json();
           if (details && details.error) message = details.error;
         }
-      } catch (parseError) {
-        console.error("Recovery error response parse failed:", parseError);
-      }
+      } catch (parseError) {}
       showToast(message);
       return;
     }
 
+    const area = document.getElementById("recoveryCodeArea");
+    if (area) area.classList.remove("hidden");
+
     if (status) {
-      status.textContent = "Agar details match karti hain to recovery link aapki recovery email par bhej diya jayega. Inbox aur Spam/Junk dono check karein.";
+      status.textContent = "Code bhej diya gaya hai. Apni recovery email ka Inbox aur Spam/Junk check karein.";
       status.className = "settings-status success";
     }
 
-    showToast("Recovery link request sent.");
+    showToast("Recovery code sent.");
+    const code = document.getElementById("recoveryCode");
+    if (code) code.focus();
+
   } catch (error) {
-    console.error("Recovery request exception:", error);
-    showToast(error && error.message ? error.message : "Could not send recovery link.");
+    console.error("Password recovery code exception:", error);
+    showToast(error && error.message ? error.message : "Could not send recovery code.");
   } finally {
     if (button) {
       button.disabled = false;
-      button.textContent = "Send recovery link";
+      button.textContent = "Send code";
     }
   }
 }
 
-function ensurePasswordResetScreen() {
-  let screen = document.getElementById("passwordResetScreen");
-  if (screen) return screen;
-
-  screen = document.createElement("section");
-  screen.id = "passwordResetScreen";
-  screen.className = "login-screen hidden";
-  screen.innerHTML = `
-    <div class="login-card">
-      <div class="brand large-brand">
-        <div class="brand-icon">P</div>
-        <div>
-          <h1>Prime Mail</h1>
-          <span>Set a new password</span>
-        </div>
-      </div>
-      <div class="login-form">
-        <h2>Create new password</h2>
-        <p class="login-description">Choose a new password for your Prime Mail account.</p>
-        <label for="resetNewPassword">New password</label>
-        <input id="resetNewPassword" type="password" minlength="6" autocomplete="new-password" placeholder="At least 6 characters">
-        <label for="resetConfirmPassword">Confirm new password</label>
-        <input id="resetConfirmPassword" type="password" minlength="6" autocomplete="new-password" placeholder="Repeat the password">
-        <button id="resetPasswordButton" type="button" class="primary-button full-width" onclick="completePasswordRecovery()">Save new password</button>
-        <p id="resetPasswordStatus" class="settings-status"></p>
-      </div>
-    </div>`;
-  document.body.appendChild(screen);
-  return screen;
-}
-
-function checkPasswordResetLink() {
-  const params = new URLSearchParams(window.location.search);
-  const token = params.get("reset");
-  if (!token) return false;
-
-  const loginScreen = document.getElementById("loginScreen");
-  const signupScreen = document.getElementById("signupScreen");
-  const mailApp = document.getElementById("mailApp");
-  if (loginScreen) loginScreen.classList.add("hidden");
-  if (signupScreen) signupScreen.classList.add("hidden");
-  if (mailApp) mailApp.classList.add("hidden");
-
-  const screen = ensurePasswordResetScreen();
-  screen.dataset.resetToken = token;
-  screen.classList.remove("hidden");
-  return true;
-}
-
 async function completePasswordRecovery() {
-  const screen = document.getElementById("passwordResetScreen");
-  const token = screen ? screen.dataset.resetToken : "";
-  const passwordInput = document.getElementById("resetNewPassword");
-  const confirmInput = document.getElementById("resetConfirmPassword");
-  const button = document.getElementById("resetPasswordButton");
-  const status = document.getElementById("resetPasswordStatus");
+  const emailInput = document.getElementById("recoveryAddress");
+  const codeInput = document.getElementById("recoveryCode");
+  const passwordInput = document.getElementById("recoveryNewPassword");
+  const confirmInput = document.getElementById("recoveryConfirmPassword");
+  const button = document.getElementById("recoveryCompleteButton");
 
+  const recoveryEmail = emailInput ? emailInput.value.trim().toLowerCase() : "";
+  const code = codeInput ? codeInput.value.trim() : "";
   const password = passwordInput ? passwordInput.value : "";
   const confirm = confirmInput ? confirmInput.value : "";
 
-  if (!token) {
-    showToast("This recovery link is missing or invalid.");
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recoveryEmail)) {
+    showToast("Please enter your recovery email.");
     return;
   }
+
+  if (!/^\\d{6}$/.test(code)) {
+    showToast("Please enter the 6-digit recovery code.");
+    return;
+  }
+
   if (password.length < 6) {
-    showToast("Password must contain at least 6 characters.");
+    showToast("New password must contain at least 6 characters.");
     return;
   }
+
   if (password !== confirm) {
     showToast("Passwords do not match.");
     return;
@@ -4318,44 +4286,48 @@ async function completePasswordRecovery() {
 
   if (button) {
     button.disabled = true;
-    button.textContent = "Saving...";
+    button.textContent = "Changing password...";
   }
 
   try {
-    const result = await supabaseClient.functions.invoke("prime-mail-password-recovery", {
+    const result = await supabaseClient.functions.invoke(RECOVERY_FUNCTION, {
       body: {
-        action: "complete",
-        token: token,
+        action: "complete_password_recovery",
+        recoveryEmail: recoveryEmail,
+        code: code,
         newPassword: password
       }
     });
 
     if (result.error) {
       console.error("Password recovery completion error:", result.error);
-      showToast(result.error.message || "Could not change password.");
+      let message = result.error.message || "Could not change password.";
+      try {
+        if (result.error.context && typeof result.error.context.json === "function") {
+          const details = await result.error.context.json();
+          if (details && details.error) message = details.error;
+        }
+      } catch (parseError) {}
+      showToast(message);
       return;
     }
 
-    if (status) {
-      status.textContent = "Password successfully changed. Ab aap new password se sign in kar sakte hain.";
-      status.className = "settings-status success";
-    }
-
-    showToast("Password changed successfully.");
+    showToast("Password changed successfully. You can now sign in.");
+    closeRecoveryModal();
 
     setTimeout(function() {
-      window.history.replaceState({}, document.title, window.location.pathname);
-      const resetScreen = document.getElementById("passwordResetScreen");
-      if (resetScreen) resetScreen.classList.add("hidden");
       showLogin();
-    }, 1200);
+      const loginPassword = document.getElementById("loginPassword");
+      if (loginPassword) loginPassword.value = "";
+    }, 500);
+
   } catch (error) {
     console.error("Password recovery completion exception:", error);
     showToast(error && error.message ? error.message : "Could not change password.");
   } finally {
     if (button) {
       button.disabled = false;
-      button.textContent = "Save new password";
+      button.textContent = "Verify code & change password";
     }
   }
 }
@@ -4517,7 +4489,7 @@ function ensureSettingsModal() {
           <section class="settings-tab hidden" data-settings-panel="account">
             <h3>My account</h3>
             <div class="account-info-card"><div><span>Name</span><strong id="settingsAccountName">-</strong></div><div><span>Username</span><strong id="settingsAccountUsername">-</strong></div><div><span>Prime Mail address</span><strong id="settingsAccountEmail">-</strong></div><div><span>Member since</span><strong id="settingsAccountCreated">-</strong></div></div>
-            <div class="recovery-card"><h4>Recovery email</h4><p class="settings-muted">Add a secondary email such as Gmail, Outlook, Yahoo, Proton or another provider.</p><input id="recoveryEmailInput" type="email" maxlength="320" autocomplete="email" placeholder="your-other-email@example.com"><div id="recoveryEmailStatus" class="settings-status"></div><div class="settings-action-row"><button type="button" class="primary-button" onclick="saveRecoveryEmail()">Save recovery email</button><button type="button" class="secondary-button" onclick="removeRecoveryEmail()">Remove</button></div></div>
+            <div class="recovery-card"><h4>Recovery email</h4><p class="settings-muted">Gmail, Outlook, Yahoo, Proton, iCloud ya kisi bhi valid email provider ka address add kar sakte hain.</p><input id="recoveryEmailInput" type="email" maxlength="320" autocomplete="email" placeholder="your-other-email@example.com"><div id="recoveryEmailStatus" class="settings-status"></div><div class="settings-action-row"><button type="button" id="recoverySendVerifyButton" class="primary-button" onclick="sendRecoveryEmailCode()">Send code</button><button type="button" class="secondary-button" onclick="removeRecoveryEmail()">Remove</button></div><div id="recoveryVerifyArea" class="hidden"><label for="recoveryVerifyCode">Verification code</label><input id="recoveryVerifyCode" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="Enter 6-digit code"><button type="button" id="recoveryVerifyButton" class="primary-button" onclick="verifyRecoveryEmailCode()">Verify recovery email</button></div></div>
             <div class="danger-zone"><h4>Delete account</h4><p>Deleting your account permanently removes your profile, mailbox, drafts, labels, attachments and Prime Mail messages. This cannot be undone.</p><button type="button" class="danger-button" onclick="deleteMyAccount()">Delete my account</button></div>
           </section>
           <section class="settings-tab hidden" data-settings-panel="security"><h3>Security</h3><p class="settings-muted">Change your password or sign out of all active sessions.</p><label for="newPassword">New password</label><input id="newPassword" type="password" minlength="6" autocomplete="new-password" placeholder="At least 6 characters"><label for="confirmPassword">Confirm new password</label><input id="confirmPassword" type="password" minlength="6" autocomplete="new-password" placeholder="Repeat the password"><button type="button" class="primary-button" onclick="changePassword()">Change password</button><button type="button" class="secondary-button" onclick="signOutEverywhere()">Sign out of all devices</button></section>
@@ -4739,46 +4711,124 @@ async function loadRecoveryEmail() {
   status.className = result.data.verified_at ? "settings-status success" : "settings-status pending";
 }
 
-async function saveRecoveryEmail() {
+async function sendRecoveryEmailCode() {
   if (!currentUser || !supabaseClient) return;
 
   const input = document.getElementById("recoveryEmailInput");
+  const button = document.getElementById("recoverySendVerifyButton");
+  const status = document.getElementById("recoveryEmailStatus");
+  const verifyArea = document.getElementById("recoveryVerifyArea");
   const email = input ? input.value.trim().toLowerCase() : "";
 
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
     showToast("Please enter a valid recovery email address.");
     return;
   }
 
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Sending code...";
+  }
+
   try {
-    const result = await supabaseClient
-      .from("recovery_emails")
-      .upsert({
-        user_id: currentUser.id,
-        email: email,
-        verified_at: null,
-        updated_at: new Date().toISOString()
-      }, { onConflict: "user_id" })
-      .select("email,verified_at")
-      .single();
+    const result = await supabaseClient.functions.invoke(RECOVERY_FUNCTION, {
+      body: { action: "send_recovery_verification", recoveryEmail: email }
+    });
 
     if (result.error) {
-      console.error("Recovery email save error:", result.error);
-      showToast(result.error.message || "Could not save recovery email.");
+      console.error("Recovery verification send error:", result.error);
+      let message = result.error.message || "Could not send verification code.";
+      try {
+        if (result.error.context && typeof result.error.context.json === "function") {
+          const details = await result.error.context.json();
+          if (details && details.error) message = details.error;
+        }
+      } catch (parseError) {}
+      showToast(message);
       return;
     }
 
-    const status = document.getElementById("recoveryEmailStatus");
+    if (verifyArea) verifyArea.classList.remove("hidden");
     if (status) {
-      status.textContent = "Recovery email saved. You can use this address for password recovery.";
+      status.textContent = "Verification code bhej diya gaya hai. Inbox aur Spam/Junk check karein.";
       status.className = "settings-status pending";
     }
 
-    showToast("Recovery email saved successfully.");
+    showToast("Verification code sent.");
+    const code = document.getElementById("recoveryVerifyCode");
+    if (code) code.focus();
 
   } catch (error) {
-    console.error("Recovery email exception:", error);
-    showToast(error && error.message ? error.message : "Could not save recovery email.");
+    console.error("Recovery verification exception:", error);
+    showToast(error && error.message ? error.message : "Could not send verification code.");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Send code";
+    }
+  }
+}
+
+async function verifyRecoveryEmailCode() {
+  if (!currentUser || !supabaseClient) return;
+
+  const input = document.getElementById("recoveryEmailInput");
+  const codeInput = document.getElementById("recoveryVerifyCode");
+  const button = document.getElementById("recoveryVerifyButton");
+  const status = document.getElementById("recoveryEmailStatus");
+  const email = input ? input.value.trim().toLowerCase() : "";
+  const code = codeInput ? codeInput.value.trim() : "";
+
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+    showToast("Please enter your recovery email.");
+    return;
+  }
+
+  if (!/^\\d{6}$/.test(code)) {
+    showToast("Please enter the 6-digit code.");
+    return;
+  }
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Verifying...";
+  }
+
+  try {
+    const result = await supabaseClient.functions.invoke(RECOVERY_FUNCTION, {
+      body: { action: "verify_recovery_email", recoveryEmail: email, code: code }
+    });
+
+    if (result.error) {
+      console.error("Recovery verification error:", result.error);
+      let message = result.error.message || "Could not verify recovery email.";
+      try {
+        if (result.error.context && typeof result.error.context.json === "function") {
+          const details = await result.error.context.json();
+          if (details && details.error) message = details.error;
+        }
+      } catch (parseError) {}
+      showToast(message);
+      return;
+    }
+
+    if (status) {
+      status.textContent = "Recovery email verified successfully.";
+      status.className = "settings-status success";
+    }
+
+    const verifyArea = document.getElementById("recoveryVerifyArea");
+    if (verifyArea) verifyArea.classList.add("hidden");
+
+    showToast("Recovery email verified.");
+  } catch (error) {
+    console.error("Recovery verification exception:", error);
+    showToast(error && error.message ? error.message : "Could not verify recovery email.");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Verify recovery email";
+    }
   }
 }
 
