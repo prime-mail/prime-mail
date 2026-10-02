@@ -4431,54 +4431,117 @@ async function saveGeneralSettings() {
 
 async function uploadProfilePhoto(event) {
   if (!currentUser || !supabaseClient) return;
-  const file = event && event.target && event.target.files ? event.target.files[0] : null;
+
+  const input = event && event.target ? event.target : null;
+  const file = input && input.files ? input.files[0] : null;
   if (!file) return;
+
   if (!["image/jpeg","image/png","image/webp","image/gif"].includes(file.type)) {
+    if (input) input.value = "";
     showToast("Please choose a JPG, PNG, WEBP or GIF image.");
     return;
   }
+
   if (file.size > 2097152) {
+    if (input) input.value = "";
     showToast("Profile photo must be 2 MB or smaller.");
     return;
   }
-  const extension = (file.name.split(".").pop() || "jpg").toLowerCase();
-  const path = currentUser.id + "/avatar." + extension;
-  const upload = await supabaseClient.storage.from("avatars").upload(path, file, {
-    upsert: true, contentType: file.type, cacheControl: "3600"
-  });
-  if (upload.error) {
-    showToast(upload.error.message || "Could not upload profile photo.");
-    return;
+
+  try {
+    showToast("Uploading profile photo...");
+
+    // Use one stable object path so replacing a photo is reliable.
+    const path = currentUser.id + "/avatar";
+    const bucket = supabaseClient.storage.from("avatars");
+
+    const upload = await bucket.upload(path, file, {
+      upsert: true,
+      contentType: file.type,
+      cacheControl: "3600"
+    });
+
+    if (upload.error) {
+      console.error("Avatar upload error:", upload.error);
+      showToast(upload.error.message || "Could not upload profile photo.");
+      return;
+    }
+
+    const publicResult = bucket.getPublicUrl(path);
+    const baseUrl = publicResult && publicResult.data
+      ? publicResult.data.publicUrl
+      : "";
+
+    if (!baseUrl) {
+      showToast("Profile photo uploaded, but its URL could not be created.");
+      return;
+    }
+
+    const publicUrl = baseUrl + "?v=" + Date.now();
+
+    const result = await supabaseClient
+      .from("profiles")
+      .update({ avatar_url: publicUrl })
+      .eq("id", currentUser.id)
+      .select()
+      .single();
+
+    if (result.error) {
+      console.error("Avatar profile update error:", result.error);
+      showToast(result.error.message || "Could not save profile photo.");
+      return;
+    }
+
+    currentProfile = result.data;
+    updateProfileUI();
+    await populateSettings();
+    showToast("Profile photo updated successfully.");
+
+  } catch (error) {
+    console.error("Profile photo error:", error);
+    showToast(error && error.message ? error.message : "Could not save profile photo.");
+  } finally {
+    if (input) input.value = "";
   }
-  const publicUrl = supabaseClient.storage.from("avatars").getPublicUrl(path).data.publicUrl + "?v=" + Date.now();
-  const result = await supabaseClient.from("profiles").update({ avatar_url: publicUrl }).eq("id", currentUser.id).select().single();
-  if (result.error) {
-    showToast(result.error.message || "Could not save profile photo.");
-    return;
-  }
-  currentProfile = result.data;
-  updateProfileUI();
-  populateSettings();
-  showToast("Profile photo updated.");
 }
 
 async function removeProfilePhoto() {
   if (!currentUser || !supabaseClient) return;
   if (!window.confirm("Remove your Prime Mail profile photo?")) return;
-  await supabaseClient.storage.from("avatars").remove([
-    currentUser.id + "/avatar.jpg", currentUser.id + "/avatar.jpeg",
-    currentUser.id + "/avatar.png", currentUser.id + "/avatar.webp",
-    currentUser.id + "/avatar.gif"
-  ]);
-  const result = await supabaseClient.from("profiles").update({ avatar_url: null }).eq("id", currentUser.id).select().single();
-  if (result.error) {
-    showToast(result.error.message || "Could not remove profile photo.");
-    return;
+
+  try {
+    const bucket = supabaseClient.storage.from("avatars");
+    await bucket.remove([
+      currentUser.id + "/avatar",
+      currentUser.id + "/avatar.jpg",
+      currentUser.id + "/avatar.jpeg",
+      currentUser.id + "/avatar.png",
+      currentUser.id + "/avatar.webp",
+      currentUser.id + "/avatar.gif"
+    ]);
+
+    const result = await supabaseClient
+      .from("profiles")
+      .update({ avatar_url: null })
+      .eq("id", currentUser.id)
+      .select()
+      .single();
+
+    if (result.error) {
+      console.error("Avatar removal profile error:", result.error);
+      showToast(result.error.message || "Could not remove profile photo.");
+      return;
+    }
+
+    currentProfile = result.data;
+    updateProfileUI();
+    await populateSettings();
+    showToast("Profile photo removed.");
+
+  } catch (error) {
+    console.error("Profile photo removal error:", error);
+    showToast(error && error.message ? error.message : "Could not remove profile photo.");
   }
-  currentProfile = result.data;
-  updateProfileUI();
-  populateSettings();
-  showToast("Profile photo removed.");
 }
 
 async function loadRecoveryEmail() {
@@ -4501,28 +4564,45 @@ async function loadRecoveryEmail() {
 
 async function saveRecoveryEmail() {
   if (!currentUser || !supabaseClient) return;
+
   const input = document.getElementById("recoveryEmailInput");
   const email = input ? input.value.trim().toLowerCase() : "";
+
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     showToast("Please enter a valid recovery email address.");
     return;
   }
-  const result = await supabaseClient.from("recovery_emails").upsert({
-    user_id: currentUser.id,
-    email: email,
-    verified_at: null,
-    updated_at: new Date().toISOString()
-  }, { onConflict: "user_id" }).select().single();
-  if (result.error) {
-    showToast(result.error.message || "Could not save recovery email.");
-    return;
+
+  try {
+    const result = await supabaseClient
+      .from("recovery_emails")
+      .upsert({
+        user_id: currentUser.id,
+        email: email,
+        verified_at: null,
+        updated_at: new Date().toISOString()
+      }, { onConflict: "user_id" })
+      .select("email,verified_at")
+      .single();
+
+    if (result.error) {
+      console.error("Recovery email save error:", result.error);
+      showToast(result.error.message || "Could not save recovery email.");
+      return;
+    }
+
+    const status = document.getElementById("recoveryEmailStatus");
+    if (status) {
+      status.textContent = "Recovery email saved. Verification is still required before password recovery can use it.";
+      status.className = "settings-status pending";
+    }
+
+    showToast("Recovery email saved successfully.");
+
+  } catch (error) {
+    console.error("Recovery email exception:", error);
+    showToast(error && error.message ? error.message : "Could not save recovery email.");
   }
-  const status = document.getElementById("recoveryEmailStatus");
-  if (status) {
-    status.textContent = "Recovery email saved. Verification is still required before password recovery can use it.";
-    status.className = "settings-status pending";
-  }
-  showToast("Recovery email saved.");
 }
 
 async function removeRecoveryEmail() {
