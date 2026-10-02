@@ -4313,24 +4313,15 @@ document.addEventListener(
 function ensureSettingsModal() {
   let modal = document.getElementById("settingsModal");
   if (modal) return modal;
-
   modal = document.createElement("div");
   modal.id = "settingsModal";
   modal.className = "settings-modal hidden";
   modal.setAttribute("role", "dialog");
   modal.setAttribute("aria-modal", "true");
-  modal.setAttribute("aria-labelledby", "settingsTitle");
-
   modal.innerHTML = `
     <div class="settings-backdrop" onclick="closeSettings()"></div>
     <div class="settings-panel">
-      <div class="settings-header">
-        <div>
-          <h2 id="settingsTitle">Settings</h2>
-          <p>Manage your Prime Mail account and preferences.</p>
-        </div>
-        <button type="button" class="icon-button" onclick="closeSettings()" aria-label="Close settings">×</button>
-      </div>
+      <div class="settings-header"><div><h2 id="settingsTitle">Settings</h2><p>Manage your Prime Mail account and preferences.</p></div><button type="button" class="icon-button" onclick="closeSettings()" aria-label="Close settings">×</button></div>
       <div class="settings-layout">
         <nav class="settings-nav">
           <button type="button" class="settings-nav-item active" data-settings-tab="general" onclick="openSettingsTab('general')">General</button>
@@ -4340,46 +4331,23 @@ function ensureSettingsModal() {
         </nav>
         <div class="settings-content">
           <section class="settings-tab" data-settings-panel="general">
-            <h3>General</h3>
-            <p class="settings-muted">Update the name people see in your Prime Mail profile.</p>
-            <label for="settingsFullName">Full name</label>
-            <input id="settingsFullName" type="text" maxlength="80" placeholder="Your name">
+            <h3>General</h3><p class="settings-muted">Update your name and profile photo.</p>
+            <div class="settings-profile-card"><div id="settingsAvatar" class="settings-avatar">P</div><div class="settings-profile-actions"><strong>Profile photo</strong><small class="settings-muted">JPG, PNG, WEBP or GIF. Maximum 2 MB.</small><div class="settings-action-row"><input id="settingsAvatarInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onchange="uploadProfilePhoto(event)"><button type="button" class="secondary-button" onclick="document.getElementById('settingsAvatarInput').click()">Choose photo</button><button type="button" class="secondary-button" onclick="removeProfilePhoto()">Remove</button></div></div></div>
+            <label for="settingsFullName">Full name</label><input id="settingsFullName" type="text" maxlength="80" placeholder="Your name">
             <label class="settings-check"><input id="settingsSaveSent" type="checkbox" checked> Keep sent messages in Sent</label>
             <button type="button" class="primary-button" onclick="saveGeneralSettings()">Save changes</button>
           </section>
           <section class="settings-tab hidden" data-settings-panel="account">
             <h3>My account</h3>
-            <div class="account-info-card">
-              <div><span>Name</span><strong id="settingsAccountName">-</strong></div>
-              <div><span>Username</span><strong id="settingsAccountUsername">-</strong></div>
-              <div><span>Prime Mail address</span><strong id="settingsAccountEmail">-</strong></div>
-              <div><span>Member since</span><strong id="settingsAccountCreated">-</strong></div>
-            </div>
-            <div class="danger-zone">
-              <h4>Delete account</h4>
-              <p>Deleting your account permanently removes your profile, mailbox, drafts, labels, attachments and Prime Mail messages. This cannot be undone.</p>
-              <button type="button" class="danger-button" onclick="deleteMyAccount()">Delete my account</button>
-            </div>
+            <div class="account-info-card"><div><span>Name</span><strong id="settingsAccountName">-</strong></div><div><span>Username</span><strong id="settingsAccountUsername">-</strong></div><div><span>Prime Mail address</span><strong id="settingsAccountEmail">-</strong></div><div><span>Member since</span><strong id="settingsAccountCreated">-</strong></div></div>
+            <div class="recovery-card"><h4>Recovery email</h4><p class="settings-muted">Add a secondary email such as Gmail, Outlook, Yahoo, Proton or another provider.</p><input id="recoveryEmailInput" type="email" maxlength="320" autocomplete="email" placeholder="your-other-email@example.com"><div id="recoveryEmailStatus" class="settings-status"></div><div class="settings-action-row"><button type="button" class="primary-button" onclick="saveRecoveryEmail()">Save recovery email</button><button type="button" class="secondary-button" onclick="removeRecoveryEmail()">Remove</button></div><small class="settings-muted">Verification and password-reset delivery require Prime Mail's transactional email sender.</small></div>
+            <div class="danger-zone"><h4>Delete account</h4><p>Deleting your account permanently removes your profile, mailbox, drafts, labels, attachments and Prime Mail messages. This cannot be undone.</p><button type="button" class="danger-button" onclick="deleteMyAccount()">Delete my account</button></div>
           </section>
-          <section class="settings-tab hidden" data-settings-panel="security">
-            <h3>Security</h3>
-            <p class="settings-muted">Change your password or sign out of all active sessions.</p>
-            <label for="newPassword">New password</label>
-            <input id="newPassword" type="password" minlength="6" autocomplete="new-password" placeholder="At least 6 characters">
-            <label for="confirmPassword">Confirm new password</label>
-            <input id="confirmPassword" type="password" minlength="6" autocomplete="new-password" placeholder="Repeat the password">
-            <button type="button" class="primary-button" onclick="changePassword()">Change password</button>
-            <button type="button" class="secondary-button" onclick="signOutEverywhere()">Sign out of all devices</button>
-          </section>
-          <section class="settings-tab hidden" data-settings-panel="appearance">
-            <h3>Appearance</h3>
-            <p class="settings-muted">Choose how Prime Mail looks on this device.</p>
-            <label class="settings-check"><input id="settingsDarkMode" type="checkbox" onchange="setThemeFromSettings(this.checked)"> Dark mode</label>
-          </section>
+          <section class="settings-tab hidden" data-settings-panel="security"><h3>Security</h3><p class="settings-muted">Change your password or sign out of all active sessions.</p><label for="newPassword">New password</label><input id="newPassword" type="password" minlength="6" autocomplete="new-password" placeholder="At least 6 characters"><label for="confirmPassword">Confirm new password</label><input id="confirmPassword" type="password" minlength="6" autocomplete="new-password" placeholder="Repeat the password"><button type="button" class="primary-button" onclick="changePassword()">Change password</button><button type="button" class="secondary-button" onclick="signOutEverywhere()">Sign out of all devices</button></section>
+          <section class="settings-tab hidden" data-settings-panel="appearance"><h3>Appearance</h3><p class="settings-muted">Choose how Prime Mail looks on this device.</p><label class="settings-check"><input id="settingsDarkMode" type="checkbox" onchange="setThemeFromSettings(this.checked)"> Dark mode</label></section>
         </div>
       </div>
     </div>`;
-
   document.body.appendChild(modal);
   return modal;
 }
@@ -4409,31 +4377,16 @@ function showAccount() {
   if (modal) modal.classList.remove("hidden");
 }
 
-function populateSettings() {
+async function populateSettings() {
   if (!currentUser) return;
-
-  const fullName = (currentProfile && currentProfile.full_name) ||
-    (currentUser.user_metadata && currentUser.user_metadata.full_name) || "";
-
-  const username = (currentProfile && currentProfile.username) ||
-    (currentUser.user_metadata && currentUser.user_metadata.username) || "";
-
-  const email = currentUser.email || "";
-  const created = currentUser.created_at ? formatDate(currentUser.created_at) : "-";
-
-  const nameInput = document.getElementById("settingsFullName");
-  const nameDisplay = document.getElementById("settingsAccountName");
-  const usernameDisplay = document.getElementById("settingsAccountUsername");
-  const emailDisplay = document.getElementById("settingsAccountEmail");
-  const createdDisplay = document.getElementById("settingsAccountCreated");
-  const darkMode = document.getElementById("settingsDarkMode");
-
-  if (nameInput) nameInput.value = fullName;
-  if (nameDisplay) nameDisplay.textContent = fullName || "-";
-  if (usernameDisplay) usernameDisplay.textContent = username ? "@" + username : "-";
-  if (emailDisplay) emailDisplay.textContent = email || "-";
-  if (createdDisplay) createdDisplay.textContent = created;
-  if (darkMode) darkMode.checked = document.body.classList.contains("dark");
+  const fullName=(currentProfile&&currentProfile.full_name)||(currentUser.user_metadata&&currentUser.user_metadata.full_name)||"";
+  const username=(currentProfile&&currentProfile.username)||(currentUser.user_metadata&&currentUser.user_metadata.username)||"";
+  const email=currentUser.email||"";
+  const created=currentUser.created_at?formatDate(currentUser.created_at):"-";
+  const nameInput=document.getElementById("settingsFullName"),nameDisplay=document.getElementById("settingsAccountName"),usernameDisplay=document.getElementById("settingsAccountUsername"),emailDisplay=document.getElementById("settingsAccountEmail"),createdDisplay=document.getElementById("settingsAccountCreated"),darkMode=document.getElementById("settingsDarkMode"),settingsAvatar=document.getElementById("settingsAvatar");
+  if(nameInput)nameInput.value=fullName;if(nameDisplay)nameDisplay.textContent=fullName||"-";if(usernameDisplay)usernameDisplay.textContent=username?"@"+username:"-";if(emailDisplay)emailDisplay.textContent=email||"-";if(createdDisplay)createdDisplay.textContent=created;if(darkMode)darkMode.checked=document.body.classList.contains("dark");
+  if(settingsAvatar){const avatarUrl=currentProfile&&currentProfile.avatar_url?currentProfile.avatar_url:"";settingsAvatar.innerHTML=avatarUrl?'<img src="'+avatarUrl+'" alt="">':(fullName.charAt(0).toUpperCase()||"P");}
+  await loadRecoveryEmail();
 }
 
 function openSettingsTab(tabName) {
