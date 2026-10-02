@@ -4476,6 +4476,120 @@ async function saveGeneralSettings() {
   showToast("Profile settings saved.");
 }
 
+async function uploadProfilePhoto(event) {
+  if (!currentUser || !supabaseClient) return;
+  const file = event && event.target && event.target.files ? event.target.files[0] : null;
+  if (!file) return;
+  if (!["image/jpeg","image/png","image/webp","image/gif"].includes(file.type)) {
+    showToast("Please choose a JPG, PNG, WEBP or GIF image.");
+    return;
+  }
+  if (file.size > 2097152) {
+    showToast("Profile photo must be 2 MB or smaller.");
+    return;
+  }
+  const extension = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = currentUser.id + "/avatar." + extension;
+  const upload = await supabaseClient.storage.from("avatars").upload(path, file, {
+    upsert: true, contentType: file.type, cacheControl: "3600"
+  });
+  if (upload.error) {
+    showToast(upload.error.message || "Could not upload profile photo.");
+    return;
+  }
+  const publicUrl = supabaseClient.storage.from("avatars").getPublicUrl(path).data.publicUrl + "?v=" + Date.now();
+  const result = await supabaseClient.from("profiles").update({ avatar_url: publicUrl }).eq("id", currentUser.id).select().single();
+  if (result.error) {
+    showToast(result.error.message || "Could not save profile photo.");
+    return;
+  }
+  currentProfile = result.data;
+  updateProfileUI();
+  populateSettings();
+  showToast("Profile photo updated.");
+}
+
+async function removeProfilePhoto() {
+  if (!currentUser || !supabaseClient) return;
+  if (!window.confirm("Remove your Prime Mail profile photo?")) return;
+  await supabaseClient.storage.from("avatars").remove([
+    currentUser.id + "/avatar.jpg", currentUser.id + "/avatar.jpeg",
+    currentUser.id + "/avatar.png", currentUser.id + "/avatar.webp",
+    currentUser.id + "/avatar.gif"
+  ]);
+  const result = await supabaseClient.from("profiles").update({ avatar_url: null }).eq("id", currentUser.id).select().single();
+  if (result.error) {
+    showToast(result.error.message || "Could not remove profile photo.");
+    return;
+  }
+  currentProfile = result.data;
+  updateProfileUI();
+  populateSettings();
+  showToast("Profile photo removed.");
+}
+
+async function loadRecoveryEmail() {
+  if (!currentUser || !supabaseClient) return;
+  const input = document.getElementById("recoveryEmailInput");
+  const status = document.getElementById("recoveryEmailStatus");
+  if (!input || !status) return;
+  const result = await supabaseClient.from("recovery_emails").select("email,verified_at").eq("user_id", currentUser.id).maybeSingle();
+  if (result.error) return;
+  if (!result.data) {
+    input.value = "";
+    status.textContent = "No recovery email added.";
+    status.className = "settings-status";
+    return;
+  }
+  input.value = result.data.email || "";
+  status.textContent = result.data.verified_at ? "Verified recovery email." : "Recovery email saved, but not verified yet.";
+  status.className = result.data.verified_at ? "settings-status success" : "settings-status pending";
+}
+
+async function saveRecoveryEmail() {
+  if (!currentUser || !supabaseClient) return;
+  const input = document.getElementById("recoveryEmailInput");
+  const email = input ? input.value.trim().toLowerCase() : "";
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    showToast("Please enter a valid recovery email address.");
+    return;
+  }
+  const result = await supabaseClient.from("recovery_emails").upsert({
+    user_id: currentUser.id,
+    email: email,
+    verified_at: null,
+    updated_at: new Date().toISOString()
+  }, { onConflict: "user_id" }).select().single();
+  if (result.error) {
+    showToast(result.error.message || "Could not save recovery email.");
+    return;
+  }
+  const status = document.getElementById("recoveryEmailStatus");
+  if (status) {
+    status.textContent = "Recovery email saved. Verification is still required before password recovery can use it.";
+    status.className = "settings-status pending";
+  }
+  showToast("Recovery email saved.");
+}
+
+async function removeRecoveryEmail() {
+  if (!currentUser || !supabaseClient) return;
+  if (!window.confirm("Remove your recovery email?")) return;
+  const result = await supabaseClient.from("recovery_emails").delete().eq("user_id", currentUser.id);
+  if (result.error) {
+    showToast(result.error.message || "Could not remove recovery email.");
+    return;
+  }
+  const input = document.getElementById("recoveryEmailInput");
+  const status = document.getElementById("recoveryEmailStatus");
+  if (input) input.value = "";
+  if (status) {
+    status.textContent = "No recovery email added.";
+    status.className = "settings-status";
+  }
+  showToast("Recovery email removed.");
+}
+
 async function changePassword() {
   if (!supabaseClient || !currentUser) return;
 
