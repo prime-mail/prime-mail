@@ -39,6 +39,7 @@ let draftSaveTimer = null;
 let suppressDraftSave = false;
 
 let toastTimer = null;
+let externalInboxTimer = null;
 
 
 /* =========================================================
@@ -718,6 +719,8 @@ async function enterMailApp() {
 
   await loadEmails();
 
+  startExternalInboxPolling();
+
 }
 
 
@@ -795,10 +798,7 @@ async function loadEmails() {
 
 async function loadExternalEmails() {
 
-  if (
-    !currentUser ||
-    !supabaseClient
-  ) {
+  if (!currentUser || !supabaseClient) {
     return [];
   }
 
@@ -816,6 +816,11 @@ async function loadExternalEmails() {
       console.error(
         "External inbox sync error:",
         syncResult.error
+      );
+    } else if (syncResult.data) {
+      console.info(
+        "PNTR inbox sync:",
+        syncResult.data
       );
     }
 
@@ -850,6 +855,55 @@ async function loadExternalEmails() {
   return (result.data || []).map(
     convertExternalEmail
   );
+}
+
+function startExternalInboxPolling() {
+
+  if (externalInboxTimer) {
+    clearInterval(externalInboxTimer);
+  }
+
+  if (!currentUser) {
+    return;
+  }
+
+  externalInboxTimer =
+    setInterval(
+      async function () {
+
+        if (!currentUser || currentFolder !== "inbox") {
+          return;
+        }
+
+        const beforeCount = emails.length;
+
+        const externalEmails =
+          await loadExternalEmails();
+
+        const internalEmails =
+          emails.filter(function (email) {
+            return !email.external;
+          });
+
+        const merged =
+          internalEmails.concat(externalEmails);
+
+        const hadNewExternal =
+          externalEmails.length >
+          emails.filter(function (email) {
+            return email.external;
+          }).length;
+
+        emails = merged;
+
+        if (hadNewExternal || merged.length !== beforeCount) {
+          renderEmails();
+          updateCounts();
+        }
+
+      },
+      15000
+    );
 }
 
 
