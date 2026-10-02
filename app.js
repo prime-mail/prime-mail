@@ -1486,17 +1486,13 @@ async function downloadEmailAttachment(attachment) {
   try {
     showToast("Preparing download...");
 
+    // Download the private Storage object directly as a Blob.
+    // This is more reliable than triggering a browser download from
+    // a signed URL, especially for images/videos and some browsers.
     const storage = supabaseClient.storage.from("email-attachments");
+    const result = await storage.download(attachment.file_path);
 
-    const result = await storage.createSignedUrl(
-      attachment.file_path,
-      300,
-      {
-        download: attachment.file_name || true
-      }
-    );
-
-    if (result.error || !result.data || !result.data.signedUrl) {
+    if (result.error || !result.data) {
       console.error("Attachment download error:", result.error);
       showToast(
         result.error && result.error.message
@@ -1506,13 +1502,18 @@ async function downloadEmailAttachment(attachment) {
       return;
     }
 
+    const blobUrl = URL.createObjectURL(result.data);
     const link = document.createElement("a");
-    link.href = result.data.signedUrl;
+    link.href = blobUrl;
     link.download = attachment.file_name || "attachment";
-    link.rel = "noopener";
+    link.style.display = "none";
     document.body.appendChild(link);
     link.click();
     link.remove();
+
+    setTimeout(function () {
+      URL.revokeObjectURL(blobUrl);
+    }, 1000);
 
     showToast("Download started.");
   } catch (error) {
