@@ -1901,3 +1901,68 @@ body.dark .email-row.unread {
 .recovery-card input[type=email]{width:100%;box-sizing:border-box;margin-top:16px;padding:12px 13px;border:1px solid rgba(128,128,128,.35);border-radius:9px;background:transparent;color:inherit}
 .settings-status{margin-top:8px;font-size:12px;opacity:.75}.settings-status.success{opacity:1}.settings-status.pending{opacity:.9}
 @media (max-width:700px){.settings-layout{grid-template-columns:1fr}.settings-nav{border-right:0;border-bottom:1px solid rgba(128,128,128,.18);display:flex;overflow-x:auto}.settings-nav-item{min-width:max-content}}
+
+
+.recovery-modal .settings-backdrop {
+  background: rgba(15, 23, 42, .58);
+  backdrop-filter: none;
+}
+
+.recovery-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(720px, calc(100vh - 32px));
+  overflow: auto;
+  background: var(--surface, #fff);
+  color: var(--text, #202124);
+  border-radius: 18px;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, .30);
+}
+
+.recovery-dialog .settings-header {
+  padding: 24px 28px 18px;
+}
+
+.recovery-dialog .settings-body {
+  padding: 24px 28px 28px;
+}
+
+.recovery-dialog .settings-body label {
+  display: block;
+  margin: 0 0 7px;
+  font-weight: 600;
+}
+
+.recovery-dialog .settings-body label + input {
+  margin-bottom: 18px;
+}
+
+.recovery-dialog .settings-body input[type="text"],
+.recovery-dialog .settings-body input[type="email"] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 13px;
+  border: 1px solid rgba(128, 128, 128, .35);
+  border-radius: 9px;
+  background: transparent;
+  color: inherit;
+}
+
+.recovery-dialog .settings-body .primary-button,
+.recovery-dialog .settings-body .secondary-button {
+  width: 100%;
+  margin-top: 10px;
+}
+
+@media (max-width: 560px) {
+  .recovery-dialog {
+    width: calc(100vw - 20px);
+  }
+
+  .recovery-dialog .settings-header,
+  .recovery-dialog .settings-body {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
