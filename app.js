@@ -1477,33 +1477,52 @@ async function loadEmailAttachments() {
   });
 }
 
-function downloadEmailAttachment(attachment) {
+async function downloadEmailAttachment(attachment) {
 
-  if (!attachment || !supabaseClient) {
+  if (!attachment || !supabaseClient || !attachment.file_path) {
     return;
   }
 
-  supabaseClient
-    .storage
-    .from("email-attachments")
-    .createSignedUrl(attachment.file_path, 60)
-    .then(function (result) {
+  try {
+    showToast("Preparing download...");
 
-      if (result.error) {
-        console.error("Attachment download error:", result.error);
-        showToast(result.error.message || "Could not open attachment.");
-        return;
+    const storage = supabaseClient.storage.from("email-attachments");
+
+    const result = await storage.createSignedUrl(
+      attachment.file_path,
+      300,
+      {
+        download: attachment.file_name || true
       }
+    );
 
-      const link = document.createElement("a");
-      link.href = result.data.signedUrl;
-      link.target = "_blank";
-      link.rel = "noopener";
-      link.download = attachment.file_name || "attachment";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    });
+    if (result.error || !result.data || !result.data.signedUrl) {
+      console.error("Attachment download error:", result.error);
+      showToast(
+        result.error && result.error.message
+          ? result.error.message
+          : "Could not download attachment."
+      );
+      return;
+    }
+
+    const link = document.createElement("a");
+    link.href = result.data.signedUrl;
+    link.download = attachment.file_name || "attachment";
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    showToast("Download started.");
+  } catch (error) {
+    console.error("Attachment download exception:", error);
+    showToast(
+      error && error.message
+        ? error.message
+        : "Could not download attachment."
+    );
+  }
 }
 
 /* =========================================================
