@@ -253,7 +253,7 @@ async function login() {
 
     authEmail =
       identifier +
-      "@prime-mail.primemail.workers.dev";
+      "@primemail.pntr.dev";
 
   }
 
@@ -442,7 +442,7 @@ async function signup() {
 
     const authEmail =
       username +
-      "@prime-mail.primemail.workers.dev";
+      "@primemail.pntr.dev";
 
 
     const signupResult =
@@ -544,7 +544,7 @@ async function signup() {
     */
 
     showToast(
-      "Account created. Please sign in."
+      "Account created. Your Prime Mail address is ready: " + username + "@primemail.pntr.dev"
     );
 
 
@@ -952,7 +952,7 @@ function convertDatabaseEmail(
 
   const mailIdentity =
     username
-      ? username + "@prime-mail.primemail.workers.dev"
+      ? username + "@primemail.pntr.dev"
       : "Prime Mail User";
 
 
