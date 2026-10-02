@@ -2808,9 +2808,19 @@ function showMessageViewer(email) {
 
     email.attachments.forEach(function (attachment) {
 
-      const item = document.createElement("button");
-      item.type = "button";
+      const item = document.createElement("div");
       item.className = "message-attachment";
+      item.style.display = "flex";
+      item.style.alignItems = "center";
+      item.style.justifyContent = "space-between";
+      item.style.gap = "12px";
+      item.style.padding = "10px 12px";
+      item.style.border = "1px solid #ddd";
+      item.style.borderRadius = "8px";
+      item.style.marginTop = "8px";
+
+      const fileInfo = document.createElement("span");
+      fileInfo.style.flex = "1";
 
       const icon =
         attachment.content_type &&
@@ -2818,17 +2828,28 @@ function showMessageViewer(email) {
           ? "🖼️"
           : "📎";
 
-      item.textContent =
+      fileInfo.textContent =
         icon + " " +
         attachment.file_name +
         " (" +
         formatFileSize(attachment.size_bytes) +
         ")";
 
-      item.onclick = function () {
+      const downloadButton = document.createElement("button");
+      downloadButton.type = "button";
+      downloadButton.textContent = "Download";
+      downloadButton.style.padding = "7px 12px";
+      downloadButton.style.borderRadius = "6px";
+      downloadButton.style.border = "none";
+      downloadButton.style.cursor = "pointer";
+
+      downloadButton.onclick = function (event) {
+        event.stopPropagation();
         downloadEmailAttachment(attachment);
       };
 
+      item.appendChild(fileInfo);
+      item.appendChild(downloadButton);
       attachmentBox.appendChild(item);
     });
 
