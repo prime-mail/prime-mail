@@ -4127,7 +4127,7 @@ function ensureRecoveryModal() {
 
   modal = document.createElement("div");
   modal.id = "recoveryModal";
-  modal.className = "settings-modal hidden";
+  modal.className = "settings-modal recovery-modal hidden";
   modal.innerHTML = `
     <div class="settings-backdrop" onclick="closeRecoveryModal()"></div>
     <div class="settings-dialog recovery-dialog">
