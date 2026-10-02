@@ -4213,7 +4213,16 @@ async function requestPasswordRecovery() {
 
     if (result.error) {
       console.error("Recovery request error:", result.error);
-      showToast(result.error.message || "Could not send recovery link.");
+      let message = result.error.message || "Could not send recovery link.";
+      try {
+        if (result.error.context && typeof result.error.context.json === "function") {
+          const details = await result.error.context.json();
+          if (details && details.error) message = details.error;
+        }
+      } catch (parseError) {
+        console.error("Recovery error response parse failed:", parseError);
+      }
+      showToast(message);
       return;
     }
 
@@ -4508,7 +4517,7 @@ function ensureSettingsModal() {
           <section class="settings-tab hidden" data-settings-panel="account">
             <h3>My account</h3>
             <div class="account-info-card"><div><span>Name</span><strong id="settingsAccountName">-</strong></div><div><span>Username</span><strong id="settingsAccountUsername">-</strong></div><div><span>Prime Mail address</span><strong id="settingsAccountEmail">-</strong></div><div><span>Member since</span><strong id="settingsAccountCreated">-</strong></div></div>
-            <div class="recovery-card"><h4>Recovery email</h4><p class="settings-muted">Add a secondary email such as Gmail, Outlook, Yahoo, Proton or another provider.</p><input id="recoveryEmailInput" type="email" maxlength="320" autocomplete="email" placeholder="your-other-email@example.com"><div id="recoveryEmailStatus" class="settings-status"></div><div class="settings-action-row"><button type="button" class="primary-button" onclick="saveRecoveryEmail()">Save recovery email</button><button type="button" class="secondary-button" onclick="removeRecoveryEmail()">Remove</button></div><small class="settings-muted">Verification and password-reset delivery require Prime Mail's transactional email sender.</small></div>
+            <div class="recovery-card"><h4>Recovery email</h4><p class="settings-muted">Add a secondary email such as Gmail, Outlook, Yahoo, Proton or another provider.</p><input id="recoveryEmailInput" type="email" maxlength="320" autocomplete="email" placeholder="your-other-email@example.com"><div id="recoveryEmailStatus" class="settings-status"></div><div class="settings-action-row"><button type="button" class="primary-button" onclick="saveRecoveryEmail()">Save recovery email</button><button type="button" class="secondary-button" onclick="removeRecoveryEmail()">Remove</button></div></div>
             <div class="danger-zone"><h4>Delete account</h4><p>Deleting your account permanently removes your profile, mailbox, drafts, labels, attachments and Prime Mail messages. This cannot be undone.</p><button type="button" class="danger-button" onclick="deleteMyAccount()">Delete my account</button></div>
           </section>
           <section class="settings-tab hidden" data-settings-panel="security"><h3>Security</h3><p class="settings-muted">Change your password or sign out of all active sessions.</p><label for="newPassword">New password</label><input id="newPassword" type="password" minlength="6" autocomplete="new-password" placeholder="At least 6 characters"><label for="confirmPassword">Confirm new password</label><input id="confirmPassword" type="password" minlength="6" autocomplete="new-password" placeholder="Repeat the password"><button type="button" class="primary-button" onclick="changePassword()">Change password</button><button type="button" class="secondary-button" onclick="signOutEverywhere()">Sign out of all devices</button></section>
@@ -4761,7 +4770,7 @@ async function saveRecoveryEmail() {
 
     const status = document.getElementById("recoveryEmailStatus");
     if (status) {
-      status.textContent = "Recovery email saved. Verification is still required before password recovery can use it.";
+      status.textContent = "Recovery email saved. You can use this address for password recovery.";
       status.className = "settings-status pending";
     }
 
