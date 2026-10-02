@@ -3959,17 +3959,14 @@ function updateProfileUI() {
   }
 
 
-  if (avatar) {
+  const avatarUrl = currentProfile && currentProfile.avatar_url ? currentProfile.avatar_url : "";
 
-    avatar.textContent =
-      initial;
+  if (avatar) {
+    avatar.innerHTML = avatarUrl ? '<img src="' + avatarUrl + '" alt="">' : initial;
   }
 
-
   if (largeAvatar) {
-
-    largeAvatar.textContent =
-      initial;
+    largeAvatar.innerHTML = avatarUrl ? '<img src="' + avatarUrl + '" alt="">' : initial;
   }
 
 }
