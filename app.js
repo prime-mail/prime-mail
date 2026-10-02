@@ -102,10 +102,6 @@ document.addEventListener(
       return;
     }
 
-    if (checkPasswordResetLink()) {
-      return;
-    }
-
     await checkExistingSession();
 
 
