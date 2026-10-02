@@ -4314,52 +4314,196 @@ document.addEventListener(
 ========================================================= */
 
 function showSettings() {
+  const menu = document.getElementById("profileMenu");
+  if (menu) menu.classList.add("hidden");
 
-  showToast(
-    "Settings will be connected next."
-  );
+  populateSettings();
+  openSettingsTab("general");
 
-
-  const menu =
-    document.getElementById(
-      "profileMenu"
-    );
-
-
-  if (menu) {
-
-    menu
-      .classList
-      .add(
-        "hidden"
-      );
-  }
-
+  const modal = document.getElementById("settingsModal");
+  if (modal) modal.classList.remove("hidden");
 }
 
+function closeSettings() {
+  const modal = document.getElementById("settingsModal");
+  if (modal) modal.classList.add("hidden");
+}
 
 function showAccount() {
+  const menu = document.getElementById("profileMenu");
+  if (menu) menu.classList.add("hidden");
 
-  let message =
-    "Account loaded.";
+  populateSettings();
+  openSettingsTab("account");
 
+  const modal = document.getElementById("settingsModal");
+  if (modal) modal.classList.remove("hidden");
+}
 
-  if (
-    currentProfile &&
-    currentProfile.username
-  ) {
+function populateSettings() {
+  if (!currentUser) return;
 
-    message =
-      "Username: @" +
-      currentProfile.username;
+  const fullName = (currentProfile && currentProfile.full_name) ||
+    (currentUser.user_metadata && currentUser.user_metadata.full_name) || "";
+
+  const username = (currentProfile && currentProfile.username) ||
+    (currentUser.user_metadata && currentUser.user_metadata.username) || "";
+
+  const email = currentUser.email || "";
+  const created = currentUser.created_at ? formatDate(currentUser.created_at) : "-";
+
+  const nameInput = document.getElementById("settingsFullName");
+  const nameDisplay = document.getElementById("settingsAccountName");
+  const usernameDisplay = document.getElementById("settingsAccountUsername");
+  const emailDisplay = document.getElementById("settingsAccountEmail");
+  const createdDisplay = document.getElementById("settingsAccountCreated");
+  const darkMode = document.getElementById("settingsDarkMode");
+
+  if (nameInput) nameInput.value = fullName;
+  if (nameDisplay) nameDisplay.textContent = fullName || "-";
+  if (usernameDisplay) usernameDisplay.textContent = username ? "@" + username : "-";
+  if (emailDisplay) emailDisplay.textContent = email || "-";
+  if (createdDisplay) createdDisplay.textContent = created;
+  if (darkMode) darkMode.checked = document.body.classList.contains("dark");
+}
+
+function openSettingsTab(tabName) {
+  document.querySelectorAll("[data-settings-panel]").forEach(function(panel) {
+    panel.classList.toggle("hidden", panel.getAttribute("data-settings-panel") !== tabName);
+  });
+
+  document.querySelectorAll("[data-settings-tab]").forEach(function(button) {
+    button.classList.toggle("active", button.getAttribute("data-settings-tab") === tabName);
+  });
+}
+
+async function saveGeneralSettings() {
+  if (!currentUser || !supabaseClient) return;
+
+  const input = document.getElementById("settingsFullName");
+  const fullName = input ? input.value.trim() : "";
+
+  if (!fullName) {
+    showToast("Please enter your full name.");
+    return;
   }
 
+  const result = await supabaseClient
+    .from("profiles")
+    .update({ full_name: fullName })
+    .eq("id", currentUser.id)
+    .select()
+    .single();
 
-  showToast(
-    message
+  if (result.error) {
+    console.error("Profile update error:", result.error);
+    showToast(result.error.message || "Could not save your profile.");
+    return;
+  }
+
+  currentProfile = result.data;
+  updateProfileUI();
+  populateSettings();
+  showToast("Profile settings saved.");
+}
+
+async function changePassword() {
+  if (!supabaseClient || !currentUser) return;
+
+  const newInput = document.getElementById("newPassword");
+  const confirmInput = document.getElementById("confirmPassword");
+  const password = newInput ? newInput.value : "";
+  const confirm = confirmInput ? confirmInput.value : "";
+
+  if (password.length < 6) {
+    showToast("Password must contain at least 6 characters.");
+    return;
+  }
+
+  if (password !== confirm) {
+    showToast("Passwords do not match.");
+    return;
+  }
+
+  const result = await supabaseClient.auth.updateUser({ password: password });
+
+  if (result.error) {
+    console.error("Password update error:", result.error);
+    showToast(result.error.message || "Could not change password.");
+    return;
+  }
+
+  if (newInput) newInput.value = "";
+  if (confirmInput) confirmInput.value = "";
+  showToast("Password changed successfully.");
+}
+
+async function signOutEverywhere() {
+  if (!supabaseClient) return;
+
+  const confirmed = window.confirm("Sign out of all active Prime Mail sessions?");
+  if (!confirmed) return;
+
+  const result = await supabaseClient.auth.signOut({ scope: "global" });
+
+  if (result.error) {
+    showToast(result.error.message || "Could not sign out everywhere.");
+    return;
+  }
+
+  closeSettings();
+  showToast("You have been signed out of all devices.");
+}
+
+function setThemeFromSettings(enabled) {
+  document.body.classList.toggle("dark", !!enabled);
+  localStorage.setItem("prime-theme", enabled ? "dark" : "light");
+}
+
+async function deleteMyAccount() {
+  if (!supabaseClient || !currentUser) return;
+
+  const username = currentProfile && currentProfile.username
+    ? currentProfile.username
+    : "your account";
+
+  const firstConfirm = window.confirm(
+    "Delete " + username + " permanently? Your Prime Mail data will be removed and cannot be recovered."
   );
 
+  if (!firstConfirm) return;
+
+  const secondConfirm = window.prompt(
+    'Type DELETE to permanently delete your Prime Mail account.'
+  );
+
+  if (secondConfirm !== "DELETE") {
+    showToast("Account deletion cancelled.");
+    return;
+  }
+
+  showToast("Deleting your account...");
+
+  const result = await supabaseClient.functions.invoke("delete-my-account", {
+    body: {}
+  });
+
+  if (result.error) {
+    console.error("Account deletion error:", result.error);
+    showToast(result.error.message || "Account could not be deleted.");
+    return;
+  }
+
+  currentUser = null;
+  currentProfile = null;
+  emails = [];
+  drafts = [];
+  labels = [];
+  closeSettings();
+  showLogin();
+  showToast("Your Prime Mail account has been deleted.");
 }
+
 
 
 function showNotifications() {
