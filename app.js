@@ -4268,7 +4268,7 @@ async function sendPasswordRecoveryCode() {
   const status = document.getElementById("recoveryRequestStatus");
   const recoveryEmail = emailInput ? emailInput.value.trim().toLowerCase() : "";
 
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recoveryEmail)) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recoveryEmail)) {
     showToast("Please enter your verified recovery email.");
     return;
   }
@@ -4334,7 +4334,7 @@ async function completePasswordRecovery() {
   const password = passwordInput ? passwordInput.value : "";
   const confirm = confirmInput ? confirmInput.value : "";
 
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recoveryEmail)) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recoveryEmail)) {
     showToast("Please enter your recovery email.");
     return;
   }
@@ -4790,7 +4790,7 @@ async function sendRecoveryEmailCode() {
   const verifyArea = document.getElementById("recoveryVerifyArea");
   const email = input ? input.value.trim().toLowerCase() : "";
 
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     showToast("Please enter a valid recovery email address.");
     return;
   }
@@ -4849,7 +4849,7 @@ async function verifyRecoveryEmailCode() {
   const email = input ? input.value.trim().toLowerCase() : "";
   const code = codeInput ? codeInput.value.trim() : "";
 
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     showToast("Please enter your recovery email.");
     return;
   }
